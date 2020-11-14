@@ -1,0 +1,29 @@
+(begin
+    (define (null l)
+        (=? nil l)
+    )
+    (define (rev l) 
+        (if (null l)
+            nil 
+            (concat (rev (cdr l)) (list (car l)))
+        )
+    )
+    (define (range start stop step)
+        (if (>= start stop)
+            nil
+            (concat (list start) (range (+ start step) stop step))
+        )
+    )
+    (define (poly-val coeffs x)
+        (if (=? coeffs nil)
+            0
+            (+ (car coeffs) (* x (poly-val (cdr coeffs) x)))
+        )
+    )
+    (define (factorial n)
+        (if (<= n 1) 
+            1 
+            (* n (factorial (- n 1)))
+        )
+    )
+)
