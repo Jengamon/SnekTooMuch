@@ -198,23 +198,23 @@ def parse(tokens, complete=True):
                     if expr[0] == 'define':
                         check_set_form_length("define", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
-                            raise SnekSyntaxError("malformed define")
+                            raise SnekSyntaxError("malformed define", incomplete=False)
                         if isinstance(expr[1], list) and expr[1][0] in KEYWORDS:
-                            raise SnekSyntaxError("cannot define keyword")
+                            raise SnekSyntaxError("cannot define keyword", incomplete=False)
                     elif expr[0] == 'lambda':
                         check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
-                            raise SnekSyntaxError("malformed lambda")
+                            raise SnekSyntaxError("malformed lambda", incomplete=False)
                     elif expr[0] == 'if':
                         check_set_form_length("if", 4)
                     elif expr[0] == 'let':
                         check_set_form_length("let", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
-                            raise SnekSyntaxError("malformed let")
+                            raise SnekSyntaxError("malformed let", incomplete=False)
                     elif expr[0] == 'set!':
                         check_set_form_length("set!", 3)
                         if not isinstance(expr[1], str):
-                            raise SnekSyntaxError("set! must be a symbol followed by a value")
+                            raise SnekSyntaxError("set! must be a symbol followed by a value", incomplete=False)
                     elif expr[0] == 'quote':
                         check_set_form_length("quote", 2)
                     elif expr[0] == 'unquote':
