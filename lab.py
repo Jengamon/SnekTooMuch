@@ -339,12 +339,11 @@ def cdr(*args):
     item = args[0]
     return item.cdr
 
-def list_snek(*args, **kwargs):
-    init = kwargs['init'] if 'init' in kwargs else True
+def list_snek(*args):
     if not args:
         return Nil()
     else:
-        return Pair(args[0], list_snek(init=False, *args[1:]), init=init)
+        return Pair(args[0], list_snek(*args[1:]))
 
 def length(*args):
     if len(args) != 1 or not (isinstance(args[0], Pair) or args[0] == Nil()):
@@ -366,17 +365,14 @@ def elt_at_index(*args):
     else:
         return elt_at_index(args[0].cdr, args[1] - 1)
 
-def concat(*args, **kwargs):
-    init = kwargs['init'] if 'init' in kwargs else True
+def concat(*args):
     if not args:
         return Nil()
     else:
         list_typecheck(args[0], "concat", "Can only join list cons")
         olst = args[0].clone()
-        if isinstance(olst, Pair):
-            olst.init = init
         lst = olst
-        other = concat(init=(olst == Nil()), *args[1:])
+        other = concat(*args[1:])
         # Find the Nil valued cdr, and set that Pair's cdr to the "other" Pair
         # Special case: if lst is nil, just return the other
         if lst == Nil():
@@ -581,10 +577,9 @@ class UserFunction:
 
 class Pair:
     """A LISP 'non atomic S-expression'"""
-    def __init__(self, car=None, cdr=None, init=False, list_mode=True):
+    def __init__(self, car=None, cdr=None, list_mode=True):
         self.car = car
         self.cdr = cdr
-        self.init = init
         self.list_mode = list_mode
 
     def __repr__(self):
@@ -592,20 +587,20 @@ class Pair:
 
     def __str__(self):
         if self.list_mode:
-            if self.init and self.cdr == Nil():
-                return "({})".format(self.car)
-            elif self.init:
-                return "({} {}".format(self.car, self.cdr)
-            elif self.cdr == Nil():
-                return "{})".format(self.car)
-            else:
-                return "{} {}".format(self.car, self.cdr)
+            string = "("
+            item = self
+            while item != Nil():
+                string += "{}{}".format(" " if string != '(' else "", item.car)
+                item = item.cdr
+                list_typecheck(item, "__str__", "INTERP ERROR: list_mode cons must be a list")
+            string += ")"
+            return string
         else:
             return "[{} {}]".format(self.car, self.cdr)
 
     def clone(self):
         """Creates an independant copy of this Pair"""
-        return Pair(self.car, self.cdr, self.init, self.list_mode)
+        return Pair(self.car, self.cdr, self.list_mode)
 
 class Nil:
     """Used to represent the Nil object."""

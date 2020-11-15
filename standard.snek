@@ -79,14 +79,13 @@
                 (lambda (l n i)
                     (if (>= n 0) 
                         (if (=? i 'ping)
-                            (play-iter (concat l '(i)) (- n 1) 'pong)
-                            (play-iter (concat l '(i)) (- n 1) 'ping)
+                            (play-iter (concat l (list i)) (- n 1) 'pong)
+                            (play-iter (concat l (list i)) (- n 1) 'ping)
                         )
                         l
                     )
                 )
             )
-            (x 3)
         )
 
         (play-iter nil n 'ping)
