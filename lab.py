@@ -221,6 +221,8 @@ def parse(tokens, complete=True):
                         check_set_form_length("quasiquote", 2)
                     elif expr[0] == 'unquote-splicing':
                         check_set_form_length("unquote-splicing", 2)
+                    elif expr[0] == 'turtle':
+                        check_set_form_length("turtle", 2, False)
                 return expr
             elif is_num(token[0]) or (len(token) > 1 and token[0] == '-' and is_num(token[1])):
                 try:
@@ -390,8 +392,8 @@ def map_snek(*args):
     if args[1] != Nil():
         try:
             new_list.car = args[0](new_list.car)
-        except TypeError:
-            raise SnekEvaluationError("Could not call arg 0 as function")
+        except TypeError as e:
+            raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
         if new_list.cdr != Nil():
             new_list.cdr = map_snek(args[0], new_list.cdr)
     return new_list
@@ -405,8 +407,8 @@ def filter_snek(*args):
             cond = args[0](new_list.car)
             if not cond:
                 new_list = filter_snek(args[0], new_list.cdr)
-        except TypeError:
-            raise SnekEvaluationError("Could not call arg 0 as function")
+        except TypeError as e:
+            raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
         if new_list != Nil() and new_list.cdr != Nil():
             new_list.cdr = filter_snek(args[0], new_list.cdr)
     return new_list
@@ -421,8 +423,8 @@ def reduce_snek(*args):
             val = args[0](val, cons.car)
             cons = cons.cdr
             list_typecheck(cons, "reduce", "Only supports list cons, not arbitrary cons")
-        except TypeError:
-            raise SnekEvaluationError("Could not call arg 0 as function")
+        except TypeError as e:
+            raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
     return val
 
 def begin_snek(*args):
@@ -601,9 +603,6 @@ class Nil:
     def __repr__(self):
         return "nil"
 
-    def __str__(self):
-        return ""
-
     def clone(self):
         """For convenience. Returns self, due to how Nil works."""
         return self
@@ -659,8 +658,11 @@ def quasiquote(datum, env):
                     val, splice = process_qquote_items(item[1], level + 1)
                     return (val, False)
                 elif item[0] == 'unquote':
-                    val, splice = process_qquote_items(item[1], level - 1)
-                    return (val, False)
+                    if level == 1:
+                        val, splice = process_qquote_items(item[1], level - 1)
+                        return (val, False)
+                    else:
+                        return (process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item)), False)
                 elif item[0] == 'unquote-splicing':
                     val, splice = process_qquote_items(item[1], level - 1)
                     list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
@@ -678,7 +680,7 @@ def quasiquote(datum, env):
                     it = evaluate(item, env)
                 else:
                     it = item
-                return (it, False)
+                return (it, False)           
             else:
                 return (item, False)
         ret, splice = process_qquote_items(datum)
@@ -724,6 +726,15 @@ def evaluate(tree, env=None):
             return ["begin"] + body
         else:
             return body[0]
+    def assert_length(name, length, exact=True):
+        nonlocal tree
+        if (len(tree) != length and exact) or (len(tree) < length and not exact):
+            raise SnekEvaluationError("Metaprogramming error: {} expected {}{} argument{}".format(
+                name,
+                length - 1,
+                "+" if not exact else "",
+                "s" if length != 1 else "")
+        )
     while loopc < loopt:
         if isinstance(tree, str):
             return env.lookup(tree)
@@ -733,6 +744,7 @@ def evaluate(tree, env=None):
             if len(tree) < 1:
                 raise SnekEvaluationError
             if tree[0] == 'define': # Definition time
+                assert_length('define', 3, not MULTIEXP_ENABLED)
                 name = None
                 value = None
                 body = multibody(tree[2:])
@@ -746,10 +758,12 @@ def evaluate(tree, env=None):
                 env.define(name, value)
                 return value
             elif tree[0] == 'lambda': # Lambda time
+                assert_length('lambda', 3, not MULTIEXP_ENABLED)
                 params = tree[1]
                 body = multibody(tree[2:])
                 return UserFunction(env, params, body)
             elif tree[0] == 'if':
+                assert_length('if', 4)
                 cond = evaluate(tree[1], env)
                 if cond:
                     tailcall(tree[2])
@@ -770,6 +784,7 @@ def evaluate(tree, env=None):
                         break
                 return x
             elif tree[0] == 'let':
+                assert_length('let', 3, not MULTIEXP_ENABLED)
                 bindings = []
                 for pair in tree[1]:
                     bindings.append((pair[0], evaluate(pair[1], env)))
@@ -779,6 +794,7 @@ def evaluate(tree, env=None):
                 body = multibody(tree[2:])
                 tailcall(body, let_env)
             elif tree[0] == 'set!':
+                assert_length('set!', 3)
                 target_env = env
                 while True:
                     if tree[1] in target_env.defined_names():
@@ -791,19 +807,20 @@ def evaluate(tree, env=None):
                         else: # We've walked all parent, and haven't found the name. Fail.
                             raise SnekNameError("set! targeting not existant binding")
             elif tree[0] == 'turtle':
+                assert_length('turtle', 2, False)
                 name = tree[1]
                 args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
                 if turtle:
                     return turtle(name, args)
             elif tree[0] == 'quote':
+                assert_length('quote', 2)
                 datum = tree[1]
-                if isinstance(datum, str):
-                    return list_snek(datum)
-                elif isinstance(datum, list):
+                if isinstance(datum, list):
                     return list_snek(*datum)
                 else:
                     return datum
             elif tree[0] == 'unquote':
+                assert_length('unquote', 2)
                 datum = tree[1]
                 def unquoter(datum):
                     """Attempts to unquote data"""
@@ -814,13 +831,14 @@ def evaluate(tree, env=None):
                             datum = datum.cdr
                             list_typecheck(datum, "unquote", "attempted to unquote a non-list cons")
                         return evaluate(utree, env)
-                    elif isinstance(datum, str) or isinstance(datum, list):
+                    if isinstance(datum, str) or isinstance(datum, list):
                         val = evaluate(datum, env)
                         return unquoter(val)
                     else:
                         return datum
                 return unquoter(datum)
             elif tree[0] == 'quasiquote':
+                assert_length('quasiquote', 2)
                 return quasiquote(tree[1], env)
             else: # Environment call
                 target = evaluate(tree[0], env)
