@@ -148,9 +148,9 @@ def tokenize(source):
                     yield '-'
             elif c == '#':
                 idx += 1
-                if source[idx] == 't' or source[idx] == 'T':
+                if idx < len(source) and (source[idx] == 't' or source[idx] == 'T'):
                     yield '#t'
-                elif source[idx] == 'f' or source[idx] == 'F':
+                elif idx < len(source) and (source[idx] == 'f' or source[idx] == 'F'):
                     yield '#f'
                 else:
                     idx -= 1
@@ -159,7 +159,6 @@ def tokenize(source):
                 yield parse_symbol()
             idx += 1
     return list(filter(lambda x: not not x, _tokenize(source)))
-
 
 def parse(tokens, complete=True):
     """
@@ -364,15 +363,17 @@ def elt_at_index(*args):
     else:
         return elt_at_index(args[0].cdr, args[1] - 1)
 
-def concat(*args):
+def concat(*args, **kwargs):
+    init = kwargs['init'] if 'init' in kwargs else True
     if not args:
         return Nil()
     else:
         if not (isinstance(args[0], Pair) or args[0] == Nil()):
             raise SnekEvaluationError
         olst = args[0].clone()
+        olst.init = init
         lst = olst
-        other = concat(*args[1:])
+        other = concat(init=False, *args[1:])
         # Find the Nil valued cdr, and set that Pair's cdr to the "other" Pair
         # Special case: if lst is nil, just return the other
         if lst == Nil():
@@ -901,7 +902,7 @@ if __name__ == '__main__':
                 trees = []
                 while not trees:
                     try:
-                        # print(tokens, trees)
+                        # print(tokens)
                         tken = tokens[:]
                         while tken:
                             trees.append(parse(tken, False))
@@ -913,6 +914,7 @@ if __name__ == '__main__':
                         else:
                             # Cannot start an expression, error
                             raise e
+                # print(trees)
                 for tree in trees:
                     print("  out>", evaluate(tree, repl_env))
             except SnekError as e:
