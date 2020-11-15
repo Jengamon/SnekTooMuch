@@ -123,6 +123,17 @@ def tokenize(source):
                 yield '('
             elif c == ')':
                 yield ')'
+            elif c == '`':
+                yield '`'
+            elif c == "'":
+                yield "'"
+            elif c == ',':
+                idx += 1
+                if idx < len(source) and source[idx] == '@':
+                    yield ',@'
+                else:
+                    idx -= 1
+                    yield ','
             elif c == ';': # Handle comments, by skip to the newline, then the loop consumes the newline
                 while idx < len(source) and source[idx] != '\n':
                     idx += 1
@@ -228,6 +239,18 @@ def parse(tokens, complete=True):
                 return False
             elif token == 'nil':
                 return Nil()
+            elif token == '`':
+                item = parse_item(tokens)
+                return ["quasiquote", item]
+            elif token == "'":
+                item = parse_item(tokens)
+                return ["quote", item]
+            elif token == ',':
+                item = parse_item(tokens)
+                return ["unquote", item]
+            elif token == ',@':
+                item = parse_item(tokens)
+                return ["unquote-splicing", item]
             elif token == ')': # Expected a expression, got an expression ender
                 raise SnekSyntaxError(incomplete=False, message="unexpected ), expected literal or (")
             else:
