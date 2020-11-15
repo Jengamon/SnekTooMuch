@@ -4,6 +4,7 @@
 import doctest
 import sys
 TURTLE_ENABLED = False
+MULTIEXP_ENABLED = False
 try:
     if TURTLE_ENABLED:
         from cturtle import turtle
@@ -31,7 +32,10 @@ class SnekSyntaxError(SnekError):
     """
     Exception to be raised when trying to evaluate a malformed expression.
     """
-    pass
+    def __init__(self, message='', incomplete=True):
+        """If incomplete = True, this error represents an incomplete expression, rather than a malformed one."""
+        super().__init__(message)
+        self.incomplete = incomplete
 
 
 class SnekNameError(SnekError):
@@ -126,7 +130,7 @@ def tokenize(source):
                 yield parse_number()
             elif c == '-':
                 idx += 1
-                if is_num(source[idx]):
+                if idx < len(source) and is_num(source[idx]):
                     yield '-' + parse_number()
                 else:
                     idx -= 1
@@ -146,7 +150,7 @@ def tokenize(source):
     return list(filter(lambda x: not not x, _tokenize(source)))
 
 
-def parse(tokens):
+def parse(tokens, complete=True):
     """
     Parses a list of tokens, constructing a representation where:
         * symbols are represented as Python strings
@@ -155,6 +159,7 @@ def parse(tokens):
 
     Arguments:
         tokens (list): a list of strings representing tokens
+        complete (flag): if True, will error if all tokens are not consume
     """
     # Check first token, it can be one of 3 things if it is valid:
     # - '(' for S-expressions
@@ -175,28 +180,36 @@ def parse(tokens):
                     raise SnekSyntaxError
 
                 # Set form checker
-                def check_set_form_length(leng):
-                    if len(expr) != leng:
-                        raise SnekSyntaxError
+                def check_set_form_length(name, leng, exact=True):
+                    if (len(expr) != leng and exact) or (len(expr) < leng and not exact):
+                        raise SnekSyntaxError(incomplete=False, message="wrong set form for {}: expected {} {}, got {} arguments".format(name, "==" if exact else ">=", leng - 1, len(expr) - 1))
                 if expr: # If expr is not empty
                     if expr[0] == 'define':
-                        check_set_form_length(3)
+                        check_set_form_length("define", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
                             raise SnekSyntaxError
                     elif expr[0] == 'lambda':
-                        check_set_form_length(3)
+                        check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
                             raise SnekSyntaxError
                     elif expr[0] == 'if':
-                        check_set_form_length(4)
+                        check_set_form_length("if", 4)
                     elif expr[0] == 'let':
-                        check_set_form_length(3)
+                        check_set_form_length("let", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
                             raise SnekSyntaxError
                     elif expr[0] == 'set!':
-                        check_set_form_length(3)
+                        check_set_form_length("set!", 3)
                         if not isinstance(expr[1], str):
                             raise SnekSyntaxError("set! must be a symbol followed by a value")
+                    elif expr[0] == 'quote':
+                        check_set_form_length("quote", 2)
+                    elif expr[0] == 'unquote':
+                        check_set_form_length("unquote", 2)
+                    elif expr[0] == 'quasiquote':
+                        check_set_form_length("quasiquote", 2)
+                    elif expr[0] == 'unquote-splicing':
+                        check_set_form_length("unquote-splicing", 2)
                 return expr
             elif is_num(token[0]) or (len(token) > 1 and token[0] == '-' and is_num(token[1])):
                 try:
@@ -216,34 +229,38 @@ def parse(tokens):
             elif token == 'nil':
                 return Nil()
             elif token == ')': # Expected a expression, got an expression ender
-                raise SnekSyntaxError
+                raise SnekSyntaxError(incomplete=False)
             else:
                 return token
         else:
             raise SnekSyntaxError # Expected somthing, got nothing
     top_level = parse_item(tokens)
-    if len(tokens) != 0:
+    if len(tokens) != 0 and complete:
         raise SnekSyntaxError # We expected all tokens consumed, but this didn't happen, so something went wrong
     return top_level
 
+def list_typecheck(val, name, msg):
+    """Typechecks for a list cons"""
+    if type(val) != Pair and val != Nil():
+        raise SnekEvaluationError(name + " error: " + msg)
 
 ######################
 # Built-in Functions #
 ######################
 
-def product(args):
+def product(*args):
     v = 1
     for i in args:
         v *= i
     return v
 
-def division(args):
+def division(*args):
     x = args[0]
     for i in args[1:]:
         x = (x / i)
     return x
 
-def all_equal(args): # =?
+def all_equal(*args): # =?
     if args:
         item = args[0]
         for o in args[1:]:
@@ -260,7 +277,7 @@ def comparison(op):
     If op is falsy, return False.
     If all items pass op, return True.
     """
-    def comp(args):
+    def comp(*args):
         if args:
             item = args[0]
             for o in args[1:]:
@@ -273,35 +290,35 @@ def comparison(op):
             return True
     return comp
 
-def not_fn(args):
+def not_fn(*args):
     if len(args) != 1:
         raise SnekEvaluationError("not can only take 1 argument")
     return not args[0]
 
-def cons(args):
+def cons(*args):
     if len(args) != 2:
         raise SnekEvaluationError("cons can only take 2 arguments")
     return Pair(args[0], args[1])
 
-def car(args):
+def car(*args):
     if len(args) != 1 or not isinstance(args[0], Pair):
         raise SnekEvaluationError("car can only take 1 cons argument")
     item = args[0]
     return item.car
 
-def cdr(args):
+def cdr(*args):
     if len(args) != 1 or not isinstance(args[0], Pair):
         raise SnekEvaluationError("cdr can only take 1 cons argument")
     item = args[0]
     return item.cdr
 
-def list_snek(args):
+def list_snek(*args):
     if not args:
         return Nil()
     else:
-        return Pair(args[0], list_snek(args[1:]))
+        return Pair(args[0], list_snek(*args[1:]))
 
-def length(args):
+def length(*args):
     if len(args) != 1 or not (isinstance(args[0], Pair) or args[0] == Nil()):
         raise SnekEvaluationError("length can only take 1 list cons argument")
     i = 0
@@ -313,15 +330,15 @@ def length(args):
             raise SnekEvaluationError("Only supports list cons, not arbitrary cons")
     return i
 
-def elt_at_index(args):
+def elt_at_index(*args):
     if len(args) != 2 or not (isinstance(args[0], Pair) and isinstance(args[1], int)) or args[1] < 0:
         raise SnekEvaluationError("elt-at-index can only take 2 arguments: a list cons and positive integer")
     if args[1] == 0:
         return args[0].car
     else:
-        return elt_at_index([args[0].cdr, args[1] - 1])
+        return elt_at_index(args[0].cdr, args[1] - 1)
 
-def concat(args):
+def concat(*args):
     if not args:
         return Nil()
     else:
@@ -329,7 +346,7 @@ def concat(args):
             raise SnekEvaluationError
         olst = args[0].clone()
         lst = olst
-        other = concat(args[1:])
+        other = concat(*args[1:])
         # Find the Nil valued cdr, and set that Pair's cdr to the "other" Pair
         # Special case: if lst is nil, just return the other
         if lst == Nil():
@@ -343,7 +360,7 @@ def concat(args):
             lst.cdr = other
         return olst
 
-def map_snek(args):
+def map_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
         raise SnekEvaluationError
     new_list = args[1].clone()
@@ -353,10 +370,10 @@ def map_snek(args):
         except TypeError:
             raise SnekEvaluationError("Could not call arg 0 as function")
         if new_list.cdr != Nil():
-            new_list.cdr = map_snek([args[0], new_list.cdr])
+            new_list.cdr = map_snek(args[0], new_list.cdr)
     return new_list
 
-def filter_snek(args):
+def filter_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
         raise SnekEvaluationError
     new_list = args[1].clone()
@@ -364,39 +381,56 @@ def filter_snek(args):
         try:
             cond = args[0]([new_list.car])
             if not cond:
-                new_list = filter_snek([args[0], new_list.cdr])
+                new_list = filter_snek(args[0], new_list.cdr)
         except TypeError:
             raise SnekEvaluationError("Could not call arg 0 as function")
         if new_list != Nil() and new_list.cdr != Nil():
             new_list.cdr = filter_snek([args[0], new_list.cdr])
     return new_list
 
-def reduce_snek(args):
+def reduce_snek(*args):
     if len(args) != 3 or not (isinstance(args[1], Pair) or args[1] == Nil()):
         raise SnekEvaluationError
     val = args[2]
     cons = args[1]
     while cons != Nil():
         try:
-            val = args[0]([val, cons.car])
+            val = args[0](val, cons.car)
             cons = cons.cdr
-            if not (isinstance(cons, Pair) or cons == Nil()):
-                raise SnekEvaluationError("Only supports list cons, not arbitrary cons")
+            list_typecheck(cons, "reduce", "Only supports list cons, not arbitrary cons")
         except TypeError:
             raise SnekEvaluationError("Could not call arg 0 as function")
     return val
 
-def begin_snek(args):
+def begin_snek(*args):
     return args[-1]
 
-def int_snek(args):
+def int_snek(*args):
     if len(args) != 1:
         raise SnekEvaluationError("int can only take 1 argument")
     return int(args[0])
 
+def set_car_mut(*args):
+    if len(args) != 2 or not isinstance(args[0], Pair):
+        raise SnekEvaluationError("set-car! can only take 2 arguments: a cons and a value")
+    args[0].car = args[1]
+    return args[1]
+
+def import_snek(*args):
+    if len(args) != 1 or not isinstance(args[0], Quote) or not isinstance(args[0].datum, str):
+        raise SnekEvaluationError("py-import only accepts a symbol quote")
+    return __import__(args[0].datum)
+
+def getattr_snek(*args):
+    # We can't actually check if for the module class directly (cuz idk how), but we do know that sys is of that type
+    # So we just check if it and sys have the same type...
+    if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], Quote) or not isinstance(args[1].datum, str):
+        raise SnekEvaluationError("getattr can only get 2 arguments: a module (hopefully), and a symbol quote")
+    return getattr(args[0], args[1].datum)
+
 snek_builtins = {
-    '+': sum,
-    '-': lambda args: -args[0] if len(args) == 1 else (args[0] - sum(args[1:])),
+    '+': lambda *args: sum(args),
+    '-': lambda *args: -args[0] if len(args) == 1 else (args[0] - sum(args[1:])),
     '*': product,
     '/': division,
     '=?': all_equal,
@@ -417,6 +451,9 @@ snek_builtins = {
     'reduce': reduce_snek,
     'begin': begin_snek,
     'int': int_snek,
+    'set-car!': set_car_mut,
+    'py-import': import_snek,
+    'getattr': getattr_snek,
 }
 
 
@@ -469,6 +506,17 @@ class Environment:
         else:
             return list(self.bindings.keys()) + (list(self.parent.defined_names(tree=True)) if self.parent else [])
 
+    def close(self):
+        """
+        Redefines all parent elements in the current scope to the value in the parent scope (to prevent changes in parent scope from affecting current scope)
+        NOTE: bc of Python aliasing, might not fully protect against changes. If changes occur, check other code.
+        """
+        in_scope = self.defined_names()
+        all_scope = self.defined_names(tree=True)
+        for name in all_scope:
+            if name not in in_scope:
+                self.define(name, self.lookup(name))
+
 class UserFunction:
     """Represents functions defined in Snek code"""
     def __init__(self, parent, params, body):
@@ -482,17 +530,17 @@ class UserFunction:
         self.params = params
         self.body = body
 
-    def __call__(self, args):
+    def __call__(self, *args):
         """
         Call this function.
         Creates a new environment, and expects *args to be evaluated values.
         """
 
         func_env = Environment(self.parent)
-        self.define_args(args, func_env)
+        self.define_args(func_env, *args)
         return evaluate(self.body, func_env)
 
-    def define_args(self, args, env):
+    def define_args(self, env, *args):
         """Define the params using the args given in a given environment"""
         if len(self.params) != len(args):
             raise SnekEvaluationError("wrong number of arguments (expected {}, got {})".format(len(self.params), len(args)))
@@ -531,10 +579,102 @@ class Nil:
         """For convenience. Returns self, due to how Nil works."""
         return self
 
+class Quote:
+    """Used to represent quoted datum"""
+    def __init__(self, datum):
+        self.datum = datum
+
+    def __repr__(self):
+        return "q<{}>".format(repr(self.datum))
+
 builtin_env = Environment(locked=True)
 
 for name in snek_builtins:
     builtin_env.define(name, snek_builtins[name])
+
+def quasiquote(datum, env):
+    """
+    Processes a template, to produce a quasiquoted template
+    datum(tree) - datum to quasiquote
+    env(Environment) - environment to evaluate in
+    level(int, optional) - the level of quasiquote this expression is at.
+        Plain S-expressions (so non-special forms), are only evaluated if this is == to 0, otherwise, it will directly return the list.
+    """
+    # We use this method, to:
+    #   1. override 'unquote' and introduce 'unquote-splicing' in the context of quasiquote
+    #   2. Recusively detect 'unquote*' expressions in lists
+    if isinstance(datum, str):
+        return Quote(datum)
+    if isinstance(datum, list):
+        def process_splice_list(itr):
+            """
+            Merges a list of (item, splice_flag) into a Python list, where:
+            item - any valid external representation
+            splice_flag - if True, item must be a list, and it will be spliced into the Python list
+            """
+            quote = []
+            for (item, splice) in itr:
+                # print(item, splice)
+                if not splice:
+                    quote.append(item)
+                else:
+                    while item != Nil():
+                        quote.append(item.car)
+                        item = item.cdr
+                        list_typecheck(item, "unquote-splicing", "attempted to splice non-list cons")
+            return quote
+
+        def process_qquote_items(item, level=1):
+            """
+            Process quasiquoted items.
+            item(tree) - item to quasiquote
+            level(int, optional) - the level of quasiquoting. Expressions are only evaluated if the level <= 0
+            """
+            nonlocal env
+            if isinstance(item, list):
+                if len(item) < 1:
+                    return ([], False)
+                if item[0] == 'quasiquote':
+                    val, splice = process_qquote_items(item[1], level + 1)
+                    return (val, False)
+                elif item[0] == 'unquote':
+                    val, splice = process_qquote_items(item[1], level - 1)
+                    return (val, False)
+                elif item[0] == 'unquote-splicing':
+                    val, splice = process_qquote_items(item[1], level - 1)
+                    list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
+                    return (val, True)
+                else:
+                    it = None
+                    if level <= 0:
+                        it = evaluate(item, env)
+                    else:
+                        it = process_splice_list(map(lambda it: process_qquote_items(it, level), item))
+                    return (it, False)
+            elif isinstance(item, str):
+                it = None
+                if level <= 0:
+                    it = evaluate(item, env)
+                else:
+                    it = item
+                return (it, False)
+            else:
+                return (item, False)
+        ret, splice = process_qquote_items(datum)
+        quote = []
+        if splice:
+            list_typecheck(ret, "unquote-splicing", "attempted to splice non-list cons")
+            while ret != Nil():
+                quote.append(ret.car)
+                ret = ret.cdr
+                list_typecheck(ret, "unquote-splicing", "attempted to splice non-list cons")
+        else:
+            quote = ret
+        return Quote(quote)
+    else:
+        return datum
+
+
 
 def evaluate(tree, env=None):
     """
@@ -572,19 +712,27 @@ def evaluate(tree, env=None):
                 if tree[0] == 'define': # Definition time
                     name = None
                     value = None
+                    body = tree[2:]
+                    if len(body) > 1:
+                        body = ["begin"] + body
+                    else:
+                        body = body[0]
                     if isinstance(tree[1], str):
                         name = tree[1]
-                        value = evaluate(tree[2], env)
+                        value = evaluate(body, env)
                     elif isinstance(tree[1], list):
                         name = tree[1][0]
                         params = tree[1][1:]
-                        body = tree[2]
                         value = UserFunction(env, params, body)
                     env.define(name, value)
                     return value
                 elif tree[0] == 'lambda': # Lambda time
                     params = tree[1]
-                    body = tree[2]
+                    body = tree[2:]
+                    if len(body) > 1:
+                        body = ["begin"] + body
+                    else:
+                        body = body[0]
                     return UserFunction(env, params, body)
                 elif tree[0] == 'if':
                     cond = evaluate(tree[1], env)
@@ -615,7 +763,12 @@ def evaluate(tree, env=None):
                     let_env = Environment(env)
                     for (name, value) in bindings:
                         let_env.define(name, value)
-                    tailcall(tree[2], let_env)
+                    body = tree[2:]
+                    if len(body) > 1:
+                        body = ["begin"] + body
+                    else:
+                        body = body[0]
+                    tailcall(body, let_env)
                     # return evaluate(tree[2], let_env)
                 elif tree[0] == 'set!':
                     target_env = env
@@ -634,6 +787,22 @@ def evaluate(tree, env=None):
                     args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
                     if turtle:
                         return turtle(name, args)
+                elif tree[0] == 'quote':
+                    datum = tree[1]
+                    if isinstance(datum, str) or isinstance(datum, list):
+                        return Quote(datum)
+                    else:
+                        return datum
+                elif tree[0] == 'unquote':
+                    datum = tree[1]
+                    if isinstance(datum, Quote):
+                        return evaluate(datum.datum, env)
+                    elif isinstance(datum, str) or isinstance(datum, list):
+                        return evaluate(datum, env)
+                    else:
+                        return datum
+                elif tree[0] == 'quasiquote':
+                    return quasiquote(tree[1], env)
                 else: # Environment call
                     target = evaluate(tree[0], env)
                     args = list(map(lambda subn: evaluate(subn, env), tree[1:]))
@@ -648,16 +817,18 @@ def evaluate(tree, env=None):
                                         restore[name] = env.lookup(name)
                                     else:
                                         restore[name] = None
-                            target.define_args(args, env)
+                            target.define_args(env, *args)
                             tailcall(target.body)
                         else:
-                            return target(args)
+                            return target(*args)
                     except TypeError as e: # Cannot call target as a function
                         raise SnekEvaluationError(e)
             else:
                 raise SnekEvaluationError # Unexpected type encountered
             loopc += 1
     ret = execute()
+    if type(ret) is UserFunction: # Keep execution environment for user functions
+        ret.parent = env
     # Restore the stuff we butchered
     for name in restore:
         val = restore[name]
@@ -692,6 +863,7 @@ if __name__ == '__main__':
     # doctest.testmod()
 
     repl_env = Environment(builtin_env)
+    MULTIEXP_ENABLED = True # Enable multi expressions for define, let and lambda
 
     for arg in sys.argv[1:]:
         evaluate_file(arg, repl_env)
@@ -702,9 +874,26 @@ if __name__ == '__main__':
             break
         else:
             try:
+                if not string:
+                    continue # Jump back to loop start if string is empty
                 tokens = tokenize(string)
-                tree = parse(tokens)
-                print("  out>", evaluate(tree, repl_env))
+                trees = []
+                while not trees:
+                    try:
+                        # print(tokens, trees)
+                        tken = tokens[:]
+                        while tken:
+                            trees.append(parse(tken, False))
+                    except SnekSyntaxError as e:
+                        if e.incomplete and tokens and tokens[0] != '' and (tokens[0] == '(' or is_alpha(tokens[0][0]) or is_num(tokens[0][0])):
+                            cont = input("..  ")
+                            tokens += tokenize(cont)
+                            trees = []
+                        else:
+                            # Cannot start an expression, error
+                            raise e
+                for tree in trees:
+                    print("  out>", evaluate(tree, repl_env))
             except SnekError as e:
                 print("  error> {}".format(e))
         print()
