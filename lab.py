@@ -830,7 +830,11 @@ def evaluate(tree, env=None):
                     if isinstance(datum, Pair):
                         utree = []
                         while datum != Nil():
-                            utree.append(datum.car)
+                            if type(datum.car) == Pair: # A sublist
+                                # Convert to Python list, using unquoter
+                                utree.append(unquoter(datum.car))
+                            else:
+                                utree.append(datum.car)
                             datum = datum.cdr
                             list_typecheck(datum, "unquote", "attempted to unquote a non-list cons")
                         return evaluate(utree, env)
@@ -857,7 +861,7 @@ def evaluate(tree, env=None):
                 except TypeError as e: # Cannot call target as a function
                     raise SnekEvaluationError(e)
         else:
-            raise SnekEvaluationError # Unexpected type encountered
+            raise SnekEvaluationError("cannot evaluate value {} of type {}".format(repr(tree), type(tree))) # Unexpected type encountered
         loopc += 1
 
 def result_and_env(tree, env=None):
