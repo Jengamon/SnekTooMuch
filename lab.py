@@ -366,7 +366,7 @@ def map_snek(*args):
     new_list = args[1].clone()
     if args[1] != Nil():
         try:
-            new_list.car = args[0]([new_list.car])
+            new_list.car = args[0](new_list.car)
         except TypeError:
             raise SnekEvaluationError("Could not call arg 0 as function")
         if new_list.cdr != Nil():
@@ -379,13 +379,13 @@ def filter_snek(*args):
     new_list = args[1].clone()
     if args[1] != Nil():
         try:
-            cond = args[0]([new_list.car])
+            cond = args[0](new_list.car)
             if not cond:
                 new_list = filter_snek(args[0], new_list.cdr)
         except TypeError:
             raise SnekEvaluationError("Could not call arg 0 as function")
         if new_list != Nil() and new_list.cdr != Nil():
-            new_list.cdr = filter_snek([args[0], new_list.cdr])
+            new_list.cdr = filter_snek(args[0], new_list.cdr)
     return new_list
 
 def reduce_snek(*args):
@@ -687,156 +687,127 @@ def evaluate(tree, env=None):
     """
     if not env:
         env = Environment(builtin_env)
-    restore = {} # Hold onto values we butcher for tail calls, then restore after we are done looping
-    # print(tree)
-    def execute():
-        """Main evaluator loop."""
-        nonlocal env, tree, restore
-        loopc = 0 # Loop counter
-        loopt = 1 # Loop target (how many times we want to loop)
-        def tailcall(code, _env=None):
-            """Tail-calls the given code, by replacing the tree and then increasing the loop target"""
-            nonlocal loopt, tree, env
-            if _env:
-                env = _env
-            tree = code
-            loopt += 1
-        while loopc < loopt:
-            if isinstance(tree, str):
-                return env.lookup(tree)
-            elif isinstance(tree, int) or isinstance(tree, float) or isinstance(tree, bool) or isinstance(tree, Nil):
-                return tree  
-            elif isinstance(tree, list): # S-expression
-                if len(tree) < 1:
-                    raise SnekEvaluationError
-                if tree[0] == 'define': # Definition time
-                    name = None
-                    value = None
-                    body = tree[2:]
-                    if len(body) > 1:
-                        body = ["begin"] + body
-                    else:
-                        body = body[0]
-                    if isinstance(tree[1], str):
-                        name = tree[1]
-                        value = evaluate(body, env)
-                    elif isinstance(tree[1], list):
-                        name = tree[1][0]
-                        params = tree[1][1:]
-                        value = UserFunction(env, params, body)
-                    env.define(name, value)
-                    return value
-                elif tree[0] == 'lambda': # Lambda time
-                    params = tree[1]
-                    body = tree[2:]
-                    if len(body) > 1:
-                        body = ["begin"] + body
-                    else:
-                        body = body[0]
-                    return UserFunction(env, params, body)
-                elif tree[0] == 'if':
-                    cond = evaluate(tree[1], env)
-                    if cond:
-                        tailcall(tree[2])
-                        #return evaluate(tree[2], env)
-                    else:
-                        tailcall(tree[3])
-                        #return evaluate(tree[3], env)
-                elif tree[0] == 'and':
-                    x = True
-                    for expr in tree[1:]:
-                        x = x and evaluate(expr, env)
-                        if not x:
-                            break
-                    return x
-                elif tree[0] == 'or':
-                    x = False
-                    for expr in tree[1:]:
-                        x = x or evaluate(expr, env)
-                        if x:
-                            break
-                    return x
-                elif tree[0] == 'let':
-                    bindings = []
-                    for pair in tree[1]:
-                        bindings.append((pair[0], evaluate(pair[1], env)))
-                    let_env = Environment(env)
-                    for (name, value) in bindings:
-                        let_env.define(name, value)
-                    body = tree[2:]
-                    if len(body) > 1:
-                        body = ["begin"] + body
-                    else:
-                        body = body[0]
-                    tailcall(body, let_env)
-                    # return evaluate(tree[2], let_env)
-                elif tree[0] == 'set!':
-                    target_env = env
-                    while True:
-                        if tree[1] in target_env.defined_names():
-                            val = evaluate(tree[2], env)
-                            target_env.define(tree[1], val)
-                            return val
-                        else:
-                            if target_env.parent:
-                                target_env = target_env.parent
-                            else: # We've walked all parent, and haven't found the name. Fail.
-                                raise SnekNameError("set! targeting not existant binding")
-                elif tree[0] == 'turtle':
-                    name = tree[1]
-                    args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
-                    if turtle:
-                        return turtle(name, args)
-                elif tree[0] == 'quote':
-                    datum = tree[1]
-                    if isinstance(datum, str) or isinstance(datum, list):
-                        return Quote(datum)
-                    else:
-                        return datum
-                elif tree[0] == 'unquote':
-                    datum = tree[1]
-                    if isinstance(datum, Quote):
-                        return evaluate(datum.datum, env)
-                    elif isinstance(datum, str) or isinstance(datum, list):
-                        return evaluate(datum, env)
-                    else:
-                        return datum
-                elif tree[0] == 'quasiquote':
-                    return quasiquote(tree[1], env)
-                else: # Environment call
-                    target = evaluate(tree[0], env)
-                    args = list(map(lambda subn: evaluate(subn, env), tree[1:]))
-                    try:
-                        if type(target) is UserFunction:
-                            # Do some tail-calling
-                            # Make sure to keep the environments clean
-                            env_names = env.defined_names()
-                            for name in target.params:
-                                if name not in restore:
-                                    if name in env_names:
-                                        restore[name] = env.lookup(name)
-                                    else:
-                                        restore[name] = None
-                            target.define_args(env, *args)
-                            tailcall(target.body)
-                        else:
-                            return target(*args)
-                    except TypeError as e: # Cannot call target as a function
-                        raise SnekEvaluationError(e)
-            else:
-                raise SnekEvaluationError # Unexpected type encountered
-            loopc += 1
-    ret = execute()
-    if type(ret) is UserFunction: # Keep execution environment for user functions
-        ret.parent = env
-    # Restore the stuff we butchered
-    for name in restore:
-        val = restore[name]
-        if val == None:
-            env.delete(name)
+
+    loopc = 0 # Loop counter
+    loopt = 1 # Loop target (how many times we want to loop)
+    def tailcall(code, _env=None):
+        """Tail-calls the given code, by replacing the tree and then increasing the loop target"""
+        nonlocal loopt, tree, env
+        if _env:
+            env = _env
+        tree = code
+        loopt += 1
+    def multibody(body):
+        """Takes a multiexpression body, and converts it into a single expression"""
+        if len(body) > 1:
+            return ["begin"] + body
         else:
-            env.define(name, val)
-    return ret
+            return body[0]
+    while loopc < loopt:
+        if isinstance(tree, str):
+            return env.lookup(tree)
+        elif isinstance(tree, int) or isinstance(tree, float) or isinstance(tree, bool) or isinstance(tree, Nil):
+            return tree  
+        elif isinstance(tree, list): # S-expression
+            if len(tree) < 1:
+                raise SnekEvaluationError
+            if tree[0] == 'define': # Definition time
+                name = None
+                value = None
+                body = multibody(tree[2:])
+                if isinstance(tree[1], str):
+                    name = tree[1]
+                    value = evaluate(body, env)
+                elif isinstance(tree[1], list):
+                    name = tree[1][0]
+                    params = tree[1][1:]
+                    value = UserFunction(env, params, body)
+                env.define(name, value)
+                return value
+            elif tree[0] == 'lambda': # Lambda time
+                params = tree[1]
+                body = multibody(tree[2:])
+                return UserFunction(env, params, body)
+            elif tree[0] == 'if':
+                cond = evaluate(tree[1], env)
+                if cond:
+                    tailcall(tree[2])
+                    #return evaluate(tree[2], env)
+                else:
+                    tailcall(tree[3])
+                    #return evaluate(tree[3], env)
+            elif tree[0] == 'and':
+                x = True
+                for expr in tree[1:]:
+                    x = x and evaluate(expr, env)
+                    if not x:
+                        break
+                return x
+            elif tree[0] == 'or':
+                x = False
+                for expr in tree[1:]:
+                    x = x or evaluate(expr, env)
+                    if x:
+                        break
+                return x
+            elif tree[0] == 'let':
+                bindings = []
+                for pair in tree[1]:
+                    bindings.append((pair[0], evaluate(pair[1], env)))
+                let_env = Environment(env)
+                for (name, value) in bindings:
+                    let_env.define(name, value)
+                body = multibody(tree[2:])
+                tailcall(body, let_env)
+            elif tree[0] == 'set!':
+                target_env = env
+                while True:
+                    if tree[1] in target_env.defined_names():
+                        val = evaluate(tree[2], env)
+                        target_env.define(tree[1], val)
+                        return val
+                    else:
+                        if target_env.parent:
+                            target_env = target_env.parent
+                        else: # We've walked all parent, and haven't found the name. Fail.
+                            raise SnekNameError("set! targeting not existant binding")
+            elif tree[0] == 'turtle':
+                name = tree[1]
+                args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
+                if turtle:
+                    return turtle(name, args)
+            elif tree[0] == 'quote':
+                datum = tree[1]
+                if isinstance(datum, str) or isinstance(datum, list):
+                    return Quote(datum)
+                else:
+                    return datum
+            elif tree[0] == 'unquote':
+                datum = tree[1]
+                if isinstance(datum, Quote):
+                    return evaluate(datum.datum, env)
+                elif isinstance(datum, str) or isinstance(datum, list):
+                    return evaluate(datum, env)
+                else:
+                    return datum
+            elif tree[0] == 'quasiquote':
+                return quasiquote(tree[1], env)
+            else: # Environment call
+                target = evaluate(tree[0], env)
+                args = list(map(lambda subn: evaluate(subn, env), tree[1:]))
+                try:
+                    if type(target) is UserFunction:
+                        # Do some tail-calling
+                        nenv = Environment(target.parent)
+                        target.define_args(nenv, *args)
+                        tailcall(target.body, nenv)
+                    else:
+                        return target(*args)
+                except TypeError as e: # Cannot call target as a function
+                    raise SnekEvaluationError(e)
+        else:
+            raise SnekEvaluationError # Unexpected type encountered
+        loopc += 1
 
 def result_and_env(tree, env=None):
     """Debugging function. Returns the result, along with the environment it was executed in"""
