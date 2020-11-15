@@ -200,7 +200,7 @@ def parse(tokens, complete=True):
                         if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
                             raise SnekSyntaxError("malformed define", incomplete=False)
                         if isinstance(expr[1], list) and expr[1][0] in KEYWORDS:
-                            raise SnekSyntaxError("cannot define keyword", incomplete=False)
+                            raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
                     elif expr[0] == 'lambda':
                         check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
