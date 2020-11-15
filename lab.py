@@ -229,7 +229,7 @@ def parse(tokens, complete=True):
             elif token == 'nil':
                 return Nil()
             elif token == ')': # Expected a expression, got an expression ender
-                raise SnekSyntaxError(incomplete=False, msg="unexpected ), expected literal or (")
+                raise SnekSyntaxError(incomplete=False, message="unexpected ), expected literal or (")
             else:
                 return token
         else:
