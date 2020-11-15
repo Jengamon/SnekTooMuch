@@ -732,10 +732,8 @@ def evaluate(tree, env=None):
                 cond = evaluate(tree[1], env)
                 if cond:
                     tailcall(tree[2])
-                    #return evaluate(tree[2], env)
                 else:
                     tailcall(tree[3])
-                    #return evaluate(tree[3], env)
             elif tree[0] == 'and':
                 x = True
                 for expr in tree[1:]:
