@@ -323,7 +323,7 @@ def not_fn(*args):
 def cons(*args):
     if len(args) != 2:
         raise SnekEvaluationError("cons can only take 2 arguments")
-    return Pair(args[0], args[1])
+    return Pair(args[0], args[1], list_mode=False)
 
 def car(*args):
     if len(args) != 1 or not isinstance(args[0], Pair):
@@ -337,11 +337,12 @@ def cdr(*args):
     item = args[0]
     return item.cdr
 
-def list_snek(*args):
+def list_snek(*args, **kwargs):
+    init = kwargs['init'] if 'init' in kwargs else True
     if not args:
         return Nil()
     else:
-        return Pair(args[0], list_snek(*args[1:]))
+        return Pair(args[0], list_snek(init=False, *args[1:]), init=init)
 
 def length(*args):
     if len(args) != 1 or not (isinstance(args[0], Pair) or args[0] == Nil()):
@@ -578,19 +579,31 @@ class UserFunction:
 
 class Pair:
     """A LISP 'non atomic S-expression'"""
-    def __init__(self, car=None, cdr=None):
+    def __init__(self, car=None, cdr=None, init=False, list_mode=True):
         self.car = car
         self.cdr = cdr
+        self.init = init
+        self.list_mode = list_mode
 
     def __repr__(self):
         return "[{} {}]".format(repr(self.car), repr(self.cdr))
 
     def __str__(self):
-        return "{} {}".format(self.car, self.cdr)
+        if self.list_mode:
+            if self.init and self.cdr == Nil():
+                return "({})".format(self.car)
+            elif self.init:
+                return "({} {}".format(self.car, self.cdr)
+            elif self.cdr == Nil():
+                return "{})".format(self.car)
+            else:
+                return "{} {}".format(self.car, self.cdr)
+        else:
+            return "[{} {}]".format(self.car, self.cdr)
 
     def clone(self):
         """Creates an independant copy of this Pair"""
-        return Pair(self.car, self.cdr)
+        return Pair(self.car, self.cdr, self.init, self.list_mode)
 
 class Nil:
     """Used to represent the Nil object."""
@@ -623,8 +636,6 @@ def quasiquote(datum, env):
     # We use this method, to:
     #   1. override 'unquote' and introduce 'unquote-splicing' in the context of quasiquote
     #   2. Recusively detect 'unquote*' expressions in lists
-    if isinstance(datum, str):
-        return list_snek(datum)
     if isinstance(datum, list):
         def process_splice_list(itr):
             """
@@ -655,14 +666,13 @@ def quasiquote(datum, env):
                 if len(item) < 1:
                     return ([], False)
                 if item[0] == 'quasiquote':
-                    val, splice = process_qquote_items(item[1], level + 1)
-                    return (val, False)
+                    return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level + 1), item))), False)
                 elif item[0] == 'unquote':
                     if level == 1:
                         val, splice = process_qquote_items(item[1], level - 1)
                         return (val, False)
                     else:
-                        return (process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item)), False)
+                        return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item))), False)
                 elif item[0] == 'unquote-splicing':
                     val, splice = process_qquote_items(item[1], level - 1)
                     list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
@@ -672,7 +682,7 @@ def quasiquote(datum, env):
                     if level <= 0:
                         it = evaluate(item, env)
                     else:
-                        it = process_splice_list(map(lambda it: process_qquote_items(it, level), item))
+                        it = list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level), item)))
                     return (it, False)
             elif isinstance(item, str):
                 it = None
@@ -684,16 +694,8 @@ def quasiquote(datum, env):
             else:
                 return (item, False)
         ret, splice = process_qquote_items(datum)
-        quote = []
-        if splice:
-            list_typecheck(ret, "unquote-splicing", "attempted to splice non-list cons")
-            while ret != Nil():
-                quote.append(ret.car)
-                ret = ret.cdr
-                list_typecheck(ret, "unquote-splicing", "attempted to splice non-list cons")
-        else:
-            quote = ret
-        return list_snek(*quote)
+        # Ignore splice at top-level, because there is nothing to splice into...
+        return ret
     else:
         return datum
 
