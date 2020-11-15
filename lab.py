@@ -581,7 +581,7 @@ class Pair:
         self.cdr = cdr
 
     def __repr__(self):
-        return "[{} {}]".format(self.car, self.cdr)
+        return "[{} {}]".format(repr(self.car), repr(self.cdr))
 
     def __str__(self):
         return "{} {}".format(self.car, self.cdr)
