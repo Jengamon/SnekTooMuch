@@ -160,7 +160,7 @@ def tokenize(source):
             idx += 1
     return list(filter(lambda x: not not x, _tokenize(source)))
 
-KEYWORDS = ["define", "lambda", "let", "set!", "quote", "unquote", "unquote-splicing", "quasiquote", "turtle", "if", "and", "or"]
+KEYWORDS = ["define", "lambda", "let", "letrec", "set!", "quote", "unquote", "unquote-splicing", "quasiquote", "turtle", "if", "and", "or"]
 def parse(tokens, complete=True):
     """
     Parses a list of tokens, constructing a representation where:
@@ -207,10 +207,10 @@ def parse(tokens, complete=True):
                             raise SnekSyntaxError("malformed lambda", incomplete=False)
                     elif expr[0] == 'if':
                         check_set_form_length("if", 4)
-                    elif expr[0] == 'let':
-                        check_set_form_length("let", 3, not MULTIEXP_ENABLED)
+                    elif expr[0] == 'let' or expr[0] == 'letrec':
+                        check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
                         if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
-                            raise SnekSyntaxError("malformed let", incomplete=False)
+                            raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
                     elif expr[0] == 'set!':
                         check_set_form_length("set!", 3)
                         if not isinstance(expr[1], str):
@@ -371,22 +371,20 @@ def concat(*args, **kwargs):
     if not args:
         return Nil()
     else:
-        if not (isinstance(args[0], Pair) or args[0] == Nil()):
-            raise SnekEvaluationError
+        list_typecheck(args[0], "concat", "Can only join list cons")
         olst = args[0].clone()
-        olst.init = init
+        if isinstance(olst, Pair):
+            olst.init = init
         lst = olst
-        other = concat(init=False, *args[1:])
+        other = concat(init=(olst == Nil()), *args[1:])
         # Find the Nil valued cdr, and set that Pair's cdr to the "other" Pair
         # Special case: if lst is nil, just return the other
         if lst == Nil():
             return other
         else:
             while lst.cdr != Nil():
-                if isinstance(lst.cdr, Pair):
-                    lst = lst.cdr
-                else:
-                    raise SnekEvaluationError("Only supports list cons, not arbitrary cons")
+                lst = lst.cdr
+                list_typecheck(lst, "concat", "Can only join list cons")
             lst.cdr = other
         return olst
 
@@ -797,6 +795,17 @@ def evaluate(tree, env=None):
                 let_env = Environment(env)
                 for (name, value) in bindings:
                     let_env.define(name, value)
+                body = multibody(tree[2:])
+                tailcall(body, let_env)
+            elif tree[0] == 'letrec':
+                # Create a shared environment for execution, and first define all names to None (so they exist, but aren't actually usable)
+                assert_length('letrec', 3, not MULTIEXP_ENABLED)
+                pairs = tree[1]
+                let_env = Environment(env)
+                for pair in pairs:
+                    let_env.define(pair[0], None)
+                for pair in pairs:
+                    let_env.define(pair[0], evaluate(pair[1], let_env))
                 body = multibody(tree[2:])
                 tailcall(body, let_env)
             elif tree[0] == 'set!':

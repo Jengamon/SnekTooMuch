@@ -40,3 +40,55 @@
         (set-elt-at-index (cdr l) (- i 1) v)
     )
 )
+(define (play x)
+    (letrec
+        (
+            (
+                ping 
+                (lambda (n) 
+                    (concat '(ping) 
+                        (if (> n 0) 
+                            (pong (- n 1)) 
+                            nil
+                        )
+                    )
+                )
+            )
+            (
+                pong
+                (lambda (n) 
+                    (concat '(pong)
+                        (if (> n 0) 
+                            (ping (- n 1)) 
+                            nil
+                        )
+                    )
+                )
+            )
+        )
+
+        (ping x)
+    )
+)
+
+(define (playi n)
+    (letrec 
+        (
+            (
+                play-iter
+                (lambda (l n i)
+                    (if (>= n 0) 
+                        (if (=? i 'ping)
+                            (play-iter (concat l '(i)) (- n 1) 'pong)
+                            (play-iter (concat l '(i)) (- n 1) 'ping)
+                        )
+                        l
+                    )
+                )
+            )
+            (x 3)
+        )
+
+        (play-iter nil n 'ping)
+    )
+)
