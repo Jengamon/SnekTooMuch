@@ -782,12 +782,16 @@ def evaluate(tree, env=None):
                     return datum
             elif tree[0] == 'unquote':
                 datum = tree[1]
-                if isinstance(datum, Quote):
-                    return evaluate(datum.datum, env)
-                elif isinstance(datum, str) or isinstance(datum, list):
-                    return evaluate(datum, env)
-                else:
-                    return datum
+                def unquoter(datum):
+                    """Attempts to unquote data"""
+                    if isinstance(datum, Quote):
+                        return evaluate(datum.datum, env)
+                    elif isinstance(datum, str) or isinstance(datum, list):
+                        val = evaluate(datum, env)
+                        return unquoter(val)
+                    else:
+                        return datum
+                return unquoter(datum)
             elif tree[0] == 'quasiquote':
                 return quasiquote(tree[1], env)
             else: # Environment call
