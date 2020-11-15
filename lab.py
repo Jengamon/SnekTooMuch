@@ -440,15 +440,15 @@ def set_car_mut(*args):
     return args[1]
 
 def import_snek(*args):
-    if len(args) != 1 or not isinstance(args[0], Quote) or not isinstance(args[0].datum, str):
+    if len(args) != 1 or not isinstance(args[0], Pair) or not isinstance(args[0].car, str) or args[1].cdr != Nil():
         raise SnekEvaluationError("py-import only accepts a symbol quote")
     return __import__(args[0].datum)
 
 def getattr_snek(*args):
     # We can't actually check if for the module class directly (cuz idk how), but we do know that sys is of that type
     # So we just check if it and sys have the same type...
-    if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], Quote) or not isinstance(args[1].datum, str):
-        raise SnekEvaluationError("getattr can only get 2 arguments: a module (hopefully), and a symbol quote")
+    if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], Pair) or not isinstance(args[1].car, str) or args[1].cdr != Nil():
+        raise SnekEvaluationError("getattr can only get 2 arguments: a module, and a symbol quote")
     return getattr(args[0], args[1].datum)
 
 snek_builtins = {
@@ -583,6 +583,9 @@ class Pair:
     def __repr__(self):
         return "[{} {}]".format(self.car, self.cdr)
 
+    def __str__(self):
+        return "{} {}".format(self.car, self.cdr)
+
     def clone(self):
         """Creates an independant copy of this Pair"""
         return Pair(self.car, self.cdr)
@@ -598,17 +601,12 @@ class Nil:
     def __repr__(self):
         return "nil"
 
+    def __str__(self):
+        return ""
+
     def clone(self):
         """For convenience. Returns self, due to how Nil works."""
         return self
-
-class Quote:
-    """Used to represent quoted datum"""
-    def __init__(self, datum):
-        self.datum = datum
-
-    def __repr__(self):
-        return "q<{}>".format(repr(self.datum))
 
 builtin_env = Environment(locked=True)
 
@@ -627,7 +625,7 @@ def quasiquote(datum, env):
     #   1. override 'unquote' and introduce 'unquote-splicing' in the context of quasiquote
     #   2. Recusively detect 'unquote*' expressions in lists
     if isinstance(datum, str):
-        return Quote(datum)
+        return list_snek(datum)
     if isinstance(datum, list):
         def process_splice_list(itr):
             """
@@ -693,7 +691,7 @@ def quasiquote(datum, env):
                 list_typecheck(ret, "unquote-splicing", "attempted to splice non-list cons")
         else:
             quote = ret
-        return Quote(quote)
+        return list_snek(*quote)
     else:
         return datum
 
@@ -799,16 +797,23 @@ def evaluate(tree, env=None):
                     return turtle(name, args)
             elif tree[0] == 'quote':
                 datum = tree[1]
-                if isinstance(datum, str) or isinstance(datum, list):
-                    return Quote(datum)
+                if isinstance(datum, str):
+                    return list_snek(datum)
+                elif isinstance(datum, list):
+                    return list_snek(*datum)
                 else:
                     return datum
             elif tree[0] == 'unquote':
                 datum = tree[1]
                 def unquoter(datum):
                     """Attempts to unquote data"""
-                    if isinstance(datum, Quote):
-                        return evaluate(datum.datum, env)
+                    if isinstance(datum, Pair):
+                        utree = []
+                        while datum != Nil():
+                            utree.append(datum.car)
+                            datum = datum.cdr
+                            list_typecheck(datum, "unquote", "attempted to unquote a non-list cons")
+                        return evaluate(utree, env)
                     elif isinstance(datum, str) or isinstance(datum, list):
                         val = evaluate(datum, env)
                         return unquoter(val)
