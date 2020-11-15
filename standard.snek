@@ -1,44 +1,42 @@
-(begin
-    (define (null l)
-        (=? nil l)
+(define (null l)
+    (=? nil l)
+)
+(define (rev l) 
+    (if (null l)
+        nil 
+        (concat (rev (cdr l)) (list (car l)))
     )
-    (define (rev l) 
-        (if (null l)
-            nil 
-            (concat (rev (cdr l)) (list (car l)))
+)
+(define (range start stop step)
+    (if (>= start stop)
+        nil
+        (concat (list start) (range (+ start step) stop step))
+    )
+)
+(define (poly-val coeffs x)
+    (if (=? coeffs nil)
+        0
+        (+ (car coeffs) (* x (poly-val (cdr coeffs) x)))
+    )
+)
+(define (factorial n) ; non tail-recursive
+    (if (<= n 1) 
+        1 
+        (* n (factorial (- n 1)))
+    )
+)
+(define (factorial-trec x) ; tail-recursive
+    (define (fact-tail x accum)
+        (if (=? x 0) 
+            accum
+            (fact-tail (- x 1) (* x accum))
         )
     )
-    (define (range start stop step)
-        (if (>= start stop)
-            nil
-            (concat (list start) (range (+ start step) stop step))
-        )
-    )
-    (define (poly-val coeffs x)
-        (if (=? coeffs nil)
-            0
-            (+ (car coeffs) (* x (poly-val (cdr coeffs) x)))
-        )
-    )
-    (define (factorial n) ; non tail-recursive
-        (if (<= n 1) 
-            1 
-            (* n (factorial (- n 1)))
-        )
-    )
-    (define (factorial-trec x) ; tail-recursive
-        (define (fact-tail x accum)
-            (if (=? x 0) 
-                accum
-                (fact-tail (- x 1) (* x accum))
-            )
-        )
-        (fact-tail x 1)
-    )
-    (define (set-elt-at-index l i v)
-        (if (=? i 0)
-            (set-car! l v)
-            (set-elt-at-index (cdr l) (- i 1) v)
-        )
+    (fact-tail x 1)
+)
+(define (set-elt-at-index l i v)
+    (if (=? i 0)
+        (set-car! l v)
+        (set-elt-at-index (cdr l) (- i 1) v)
     )
 )

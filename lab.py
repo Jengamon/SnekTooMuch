@@ -881,7 +881,14 @@ def evaluate_file(filename, env=None):
     with open(filename, 'r') as f:
         source = "\n".join(f.readlines())
     tokens = tokenize(source)
-    tree = parse(tokens)
+    tree = None
+    if MULTIEXP_ENABLED:
+        trees = []
+        while tokens:
+            trees.append(parse(tokens, False))
+        tree = ["begin"] + trees
+    else:
+        tree = parse(tokens)
     return evaluate(tree, env)
 
 if __name__ == '__main__':
