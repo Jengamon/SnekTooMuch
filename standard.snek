@@ -91,3 +91,39 @@
         (play-iter nil n 'ping)
     )
 )
+
+(define (take l n)
+    (if (null l)
+        nil
+        (if (> n 0)
+            (concat (list (car l)) (take (cdr l) (- n 1)))
+            nil
+        )
+    )
+)
+
+(define (skip l n)
+    (if (null l)
+        nil
+        (if (> n 0)
+            (skip (cdr l) (- n 1))
+            l
+        )
+    )
+)
+
+(define (forth stack code)
+    (if (null code)
+        stack
+        (let
+            (
+                (item (car code))
+            )
+            (if (num? item)
+                (forth (concat (list item) stack) (cdr code))
+                ; Assume this is an operator, and that it takes exactly two arguments
+                (forth (concat (skip stack 2) (list ,`(,item ,@(take stack 2)))) (cdr code))
+            )
+        )
+    )
+)
