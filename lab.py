@@ -403,15 +403,18 @@ def concat(*args):
 def map_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
         raise SnekEvaluationError
-    new_list = args[1].clone()
-    if args[1] != Nil():
+    flst = args[1].clone()
+    clst = flst
+    while clst != Nil():
         try:
-            new_list.car = args[0](new_list.car)
+            clst.car = args[0](clst.car)
         except TypeError as e:
             raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
-        if new_list.cdr != Nil():
-            new_list.cdr = map_snek(args[0], new_list.cdr)
-    return new_list
+        it = clst.cdr.clone()
+        clst.cdr = it
+        clst = it
+        list_typecheck(clst, "map", "Can only map list cons")
+    return flst
 
 def filter_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
