@@ -254,6 +254,17 @@
     ,(~forth stack asaf code)
 )
 
+(define (~sum l)
+    `(~forth nil nil '(,@l ,@(map (lambda (x) '+) l)))
+)
+
+(define (~countv n)
+    (if (> n 0)
+        `(list ,n ,(~countv (- n 1)))
+        nil
+    )
+)
+
 (define (tree s) ; s should be a list of tokens that we can process into a tree using (left . right) syntax
     (if (and (list? s) (=? (length s) 3) (=? (elt-at-index s 1) '.))
         (cons (tree (elt-at-index s 0)) (tree (elt-at-index s 2)))

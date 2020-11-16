@@ -5,6 +5,7 @@ import doctest
 import sys
 TURTLE_ENABLED = False
 MULTIEXP_ENABLED = False
+QUASIQUOTE_HARDLIMIT = 1_000_000 # Hardlimit to number of iterations quasiquote can go through
 try:
     if TURTLE_ENABLED:
         from cturtle import turtle
@@ -739,11 +740,11 @@ def quasiquote(datum, env):
         # print(datum)
         # return None
         output_data = None
-        pqueue = [(datum, 0, Nil(), None)]
+        pqueue = [(datum, 0, Nil(), 1, None)]
         splice = None # Splice Flag, None if we should list_snek data, True if splice, False if not splice
-        level = 1
+        ic = 0 # Total iter count. We have a hard-limit of a million
         while pqueue:
-            item, index, data, splice = pqueue.pop()
+            item, index, data, level, splice = pqueue.pop()
             def add_to_data(it):
                 nonlocal data
                 # print(repr(data), it)
@@ -755,6 +756,9 @@ def quasiquote(datum, env):
                 else:
                     add_to_data(item[index])
             while index < len(item):
+                ic += 1
+                if ic >= QUASIQUOTE_HARDLIMIT:
+                    raise SnekEvaluationError("Metaprogramming error: quasiquote to more than {} iterations to resolve".format(ic))
                 # print(">>", level,  item, index, data, splice)
                 if isinstance(item[index], list):
                     if not item[index]: # Empty list?
@@ -763,7 +767,7 @@ def quasiquote(datum, env):
                         if level < 1:
                             add_to_data(evaluate(item[index], env))
                         else:
-                            pqueue.append((item, index + 1, data, splice))
+                            pqueue.append((item, index + 1, data, level, splice))
                             item = item[index]
                             index = 0
                             data = Nil()
@@ -791,31 +795,52 @@ def quasiquote(datum, env):
                 index += 1
             # print("><", pqueue, repr(data))
             if pqueue:
-                nitem, nindex, ndata, nsplice = pqueue[-1]
+                nitem, nindex, ndata, nlevel, nsplice = pqueue[-1]
                 # print("G?", repr(ndata), repr(data), splice)
                 if splice == None:
-                    try:
-                        pqueue[-1] = (nitem, nindex, concat(ndata, list_snek(data)), nsplice)
-                    except SnekEvaluationError:
-                        raise SnekEvaluationError("Internal error (E2): <internal data list> could not be joined with other list")
+                    ndata = concat(ndata, list_snek(data))
                 else:
                     if length(data) != 1:
-                        raise SnekEvaluationError("Internal error (E1): <internal unquote list> evaled to non-length 1 list, should be syntax error")
+                        raise SnekEvaluationError("Metaprogramming error: unquote/unquote-splicing given more than 1 argument")
                     sublist = data.car
                     if splice: # Unquote splice
                         try:
-                            pqueue[-1] = (nitem, nindex, concat(ndata, sublist), nsplice)
+                            ndata = concat(ndata, sublist)
                         except SnekEvaluationError:
                             raise SnekEvaluationError("Metaprogramming error: unquote-splicing evaled to non-list")
                     else: # Unquote data
-                        pqueue[-1] = (nitem, nindex, concat(ndata, list_snek(sublist)), nsplice)
+                        ndata = concat(ndata, list_snek(sublist))
+                pqueue[-1] = (nitem, nindex, ndata, nlevel, nsplice)
             else:
                 output_data = data
         return output_data
     else:
         return datum
 
-
+def snek_to_py(lst): # Snek lists to Python lists. Uses list_snek for reverse
+    list_typecheck(lst, "snek_to_py", "attempted to pythonize a non-list cons")
+    if isinstance(lst, Pair):
+        list_typecheck(lst, "snek_to_py", "attempted to pythonize a non-list cons")
+        output_pairs = [(lst, [])]
+        onl = None
+        while output_pairs:
+            (it, nl) = output_pairs.pop()
+            while it != Nil():
+                if isinstance(it.car, Pair) and it.list_mode:
+                    output_pairs.append((it.cdr, nl))
+                    it = it.car
+                    nl = []
+                nl.append(it.car)
+                it = it.cdr
+                list_typecheck(it, "snek_to_py", "attempted to pythonize a non-list cons")
+            if output_pairs:
+                (nit, nnl) = output_pairs[-1]
+                output_pairs[-1] = (nit, nnl + [nl])
+            else:
+                onl = nl
+        return onl
+    else:
+        return lst
 
 def evaluate(tree, env=None):
     """
@@ -944,31 +969,6 @@ def evaluate(tree, env=None):
                 def unquoter(datum):
                     """Attempts to unquote data"""
                     if isinstance(datum, Pair):
-                        utree = []
-                        def snek_to_py(lst):
-                            if isinstance(lst, Pair):
-                                list_typecheck(lst, "unquote", "attempted to unquote a non-lost cons")
-                                output_pairs = [(lst, [])]
-                                onl = None
-                                while output_pairs:
-                                    (it, nl) = output_pairs.pop()
-                                    while it != Nil():
-                                        if isinstance(it.car, Pair) and it.list_mode:
-                                            output_pairs.append((it.cdr, nl))
-                                            it = it.car
-                                            nl = []
-                                        nl.append(it.car)
-                                        it = it.cdr
-                                        list_typecheck(it, "unquote", "attempted to unquote a non-lost cons")
-                                    if output_pairs:
-                                        (nit, nnl) = output_pairs[-1]
-                                        output_pairs[-1] = (nit, nnl + [nl])
-                                    else:
-                                        onl = nl
-                                return onl
-                            else:
-                                return lst
-                        # print(repr(snek_to_py(datum)))
                         return evaluate(snek_to_py(datum), env)
                     elif isinstance(datum, str) or isinstance(datum, list):
                         val = evaluate(datum, env)
