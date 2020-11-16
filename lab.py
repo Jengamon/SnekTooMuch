@@ -161,7 +161,7 @@ def check_set_form(expr):
     """Checks the set form of an S expression, and raises SnekSyntaxErrors when failing"""
     def check_set_form_length(name, leng, exact=True):
         if (len(expr) != leng and exact) or (len(expr) < leng and not exact):
-            raise SnekSyntaxError(incomplete=False, message="wrong set form for {}: expected {}{}, got {} arguments".format(name, "+" if not exact else "", leng - 1, len(expr) - 1))
+            raise SnekSyntaxError(incomplete=False, message="wrong set form for {0}: expected {2}{1}, got {3} arguments".format(name, "+" if not exact else "", leng - 1, len(expr) - 1))
     if expr:
         if expr[0] == 'define':
             check_set_form_length("define", 3, not MULTIEXP_ENABLED)
