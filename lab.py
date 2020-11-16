@@ -360,10 +360,18 @@ def length(*args):
 def elt_at_index(*args):
     if len(args) != 2 or not (isinstance(args[0], Pair) and isinstance(args[1], int)) or args[1] < 0:
         raise SnekEvaluationError("elt-at-index can only take 2 arguments: a list cons and positive integer")
-    if args[1] == 0:
-        return args[0].car
+    n = args[1]
+    l = args[0]
+    while n > 0:
+        n -= 1
+        if l == Nil():
+            break
+        l = l.cdr
+        list_typecheck(l, "elt-at-index", "Cannot operate on non-list cons")
+    if l != Nil():
+        return l.car
     else:
-        return elt_at_index(args[0].cdr, args[1] - 1)
+        raise SnekEvaluationError("index {} out of bounds for {}".format(args[1], args[0]))
 
 def concat(*args):
     if not args:
