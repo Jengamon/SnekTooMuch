@@ -1,6 +1,12 @@
+; STANDARD CONVENTIONS
+; name! means that this method can modify non-local environments (e.g. set!, del!)
+; name? means that this method querys if a value satisfies some given condition (e.g. num?, list?)
+; ~name means that this method generates code that can be executed (basically a macro)
+
 (define (null l)
     (=? nil l)
 )
+
 (define (rev l) 
     (if (null l)
         nil 
@@ -21,10 +27,10 @@
         )
         (range-iter (list) start stop step)
     )
-    ;(if (>= start stop)
+    ; (if (>= start stop)
     ;    nil
     ;    (concat (list start) (range (+ start step) stop step))
-    ;)
+    ; )
 )
 (define (poly-val coeffs x)
     (if (=? coeffs nil)
@@ -49,7 +55,7 @@
 )
 (define (set-elt-at-index l i v)
     (if (=? i 0)
-        (set-car! l v)
+        (set-car l v)
         (set-elt-at-index (cdr l) (- i 1) v)
     )
 )
@@ -142,18 +148,12 @@
     )
 )
 
-(define (forth stack code)
-    (if (null code)
-        stack
-        (let
-            (
-                (item (car code))
-            )
-            (if (num? item)
-                (forth (concat (list item) stack) (cdr code))
-                ; Assume this is an operator, and that it takes exactly two arguments
-                (forth (concat (skip stack 2) (list ,`(,item ,@(take stack 2)))) (cdr code))
-            )
+(define (find? l v) ; Can v be found in list l
+    (if (=? l nil)
+        #f
+        (if (=? (car l) v)
+            #t
+            (find? (cdr l) v)
         )
     )
 )
@@ -188,4 +188,45 @@
             (ceil n)
         )
     )
+)
+
+(define (~forth stack asaf code) ; the starting stack, additional single-argument-functions, code to execute
+    (define saf (concat '(abs frac floor ceil round) asaf)) ; A list of methods that we will only call with one argument
+    (if (null code)
+        `(list ,@(rev stack))
+        (let
+            (
+                (item (car code))
+            )
+            (if (num? item)
+                (~forth (concat (list item) stack) asaf (cdr code))
+                ; Assume this is an operator, and that it takes exactly two arguments, unless this name is in saf
+                (if (find? saf item)
+                    (~forth (concat (list `(,item ,@(take stack 1))) (skip stack 1)) asaf (cdr code))
+                    (~forth (concat (list `(,item ,(rev (take stack 2)))) (skip stack 2)) asaf (cdr code))
+                )
+            )
+        )
+    )
+)
+
+(define (forth stack asaf code) ; Now this is just a macro call
+    ,(~forth stack asaf code)
+)
+
+(define (tree s) ; s should be a list of tokens that we can process into a tree using (left . right) syntax
+    (if (and (list? s) (=? (length s) 3) (=? (elt-at-index s 1) '.))
+        (cons (tree (elt-at-index s 0)) (tree (elt-at-index s 2)))
+        s
+    )
+)
+
+(define (~list-to-tree l)
+    (define (tree-list l) 
+        (if (=? nil l) 
+            nil 
+            `(,(car l) . ,(tree-list (cdr l)))
+        )
+    ) 
+    `(tree ',(tree-list l))
 )
