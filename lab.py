@@ -156,7 +156,7 @@ def tokenize(source):
             idx += 1
     return list(filter(lambda x: not not x, _tokenize(source)))
 
-KEYWORDS = ["define", "lambda", "let", "letrec", "set!", "quote", "unquote", "unquote-splicing", "quasiquote", "turtle", "if", "and", "or"]
+KEYWORDS = ["define", "lambda", "let", "letrec", "set!", "del!", "quote", "unquote", "unquote-splicing", "quasiquote", "turtle", "if", "and", "or"]
 def check_set_form(expr):
     """Checks the set form of an S expression, and raises SnekSyntaxErrors when failing"""
     def check_set_form_length(name, leng, exact=True):
@@ -182,7 +182,11 @@ def check_set_form(expr):
         elif expr[0] == 'set!':
             check_set_form_length("set!", 3)
             if not isinstance(expr[1], str):
-                raise SnekSyntaxError("set! must be a symbol followed by a value", incomplete=False)
+                raise SnekSyntaxError("set! must be given a symbol followed by a value", incomplete=False)
+        elif expr[0] == 'del!':
+            check_set_form_length("del!", 2)
+            if not isinstance(expr[1], str):
+                raise SnekSyntaxError("del! must be followed by a symbol", incomplete=False)
         elif expr[0] == 'quote':
             check_set_form_length("quote", 2)
         elif expr[0] == 'unquote':
@@ -482,7 +486,7 @@ def set_car_mut(*args):
     if len(args) != 2 or not isinstance(args[0], Pair):
         raise SnekEvaluationError("set-car! can only take 2 arguments: a cons and a value")
     args[0].car = args[1]
-    return args[1]
+    return args[0]
 
 def import_snek(*args):
     if len(args) != 1 or not isinstance(args[0], str):
@@ -535,7 +539,7 @@ snek_builtins = {
     'reduce': reduce_snek,
     'begin': begin_snek,
     'int': int_snek,
-    'set-car!': set_car_mut,
+    'set-car': set_car_mut,
     'py-import': import_snek,
     'getattr': getattr_snek,
     'num?': is_num,
@@ -579,10 +583,14 @@ class Environment:
         """Removes a name and its value from an environment (or that of its parents). (will not delete from locked environments.)"""
         if label in self.bindings:
             if not self.locked:
+                i = self.bindings[label]
                 del self.bindings[label]
+                return i
         else:
             if self.parent:
-                self.parent.delete(label)
+                return self.parent.delete(label)
+            else:
+                raise SnekEvaluationError('attempting to delete non-existing name {}'.format(label))
 
 
     def defined_names(self, tree=False):
@@ -883,6 +891,8 @@ def evaluate(tree, env=None):
                             target_env = target_env.parent
                         else: # We've walked all parent, and haven't found the name. Fail.
                             raise SnekNameError("set! targeting not existant binding")
+            elif tree[0] == 'del!':
+                return env.delete(tree[1])
             elif tree[0] == 'turtle':
                 name = tree[1]
                 args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
