@@ -8,9 +8,36 @@
 )
 
 (define (rev l) 
-    (if (null l)
-        nil 
-        (concat (rev (cdr l)) (list (car l)))
+    (letrec
+        (
+            (
+                rev-iter
+                (lambda (l t)
+                    (if (null t)
+                        l
+                        (rev-iter (concat (list (car t)) l) (cdr t))
+                    )
+                )
+            )
+        )
+        (rev-iter nil l)
+    )
+)
+
+(define (~rev l) 
+    (letrec
+        (
+            (
+                rev-iter
+                (lambda (l t)
+                    (if (null t)
+                        l
+                        (rev-iter `(concat (list ,(car t)) ,l) (cdr t))
+                    )
+                )
+            )
+        )
+        (rev-iter nil l)
     )
 )
 
@@ -113,12 +140,22 @@
 )
 
 (define (take l n)
-    (if (null l)
-        nil
-        (if (> n 0)
-            (concat (list (car l)) (take (cdr l) (- n 1)))
-            nil
+    (letrec
+        (
+            (
+                take-iter
+                (lambda (r l n)
+                    (if (=? nil l)
+                        r
+                        (if (> n 0)
+                            (take-iter (concat r (list (car l))) (cdr l) (- n 1))
+                            r
+                        )
+                    )
+                )
+            )
         )
+        (take-iter nil l n)
     )
 )
 
@@ -192,19 +229,21 @@
 )
 
 (define (~forth stack asaf code) ; the starting stack, additional single-argument-functions, code to execute
-    (define saf (concat '(abs frac floor ceil round) asaf)) ; A list of methods that we will only call with one argument
-    (if (null code)
-        `(list ,@(rev stack))
-        (let
-            (
-                (item (car code))
-            )
-            (if (num? item)
-                (~forth (concat (list item) stack) asaf (cdr code))
-                ; Assume this is an operator, and that it takes exactly two arguments, unless this name is in saf
-                (if (find? saf item)
-                    (~forth (concat (list `(,item ,@(take stack 1))) (skip stack 1)) asaf (cdr code))
-                    (~forth (concat (list `(,item ,@(rev (take stack 2)))) (skip stack 2)) asaf (cdr code))
+    (let
+        ((saf (concat '(abs frac floor ceil round) asaf)))
+        (if (null code)
+            `(list ,@(rev stack))
+            (let
+                (
+                    (item (car code))
+                )
+                (if (num? item)
+                    (~forth (concat (list item) stack) asaf (cdr code))
+                    ; Assume this is an operator, and that it takes exactly two arguments, unless this name is in saf
+                    (if (find? saf item)
+                        (~forth (concat (list `(,item ,@(take stack 1))) (skip stack 1)) asaf (cdr code))
+                        (~forth (concat (list `(,item ,@(rev (take stack 2)))) (skip stack 2)) asaf (cdr code))
+                    )
                 )
             )
         )
