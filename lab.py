@@ -475,7 +475,7 @@ def reduce_snek(*args):
     return val
 
 def begin_snek(*args):
-    return args[-1]
+    return args[-1] if len(args) > 0 else Nil()
 
 def int_snek(*args):
     if len(args) != 1:
@@ -516,6 +516,12 @@ def is_list(*args):
             l = l.cdr
     return False # If we reach here without returning early, l is not Pair and not nil, so it is not a list
 
+def print_snek(*args):
+    '''Prints all args to output, and returns the displayed string'''
+    output = ' '.join(map(str, args))
+    print(output)
+    return output
+
 snek_builtins = {
     '+': lambda *args: sum(args),
     '-': lambda *args: -args[0] if len(args) == 1 else (args[0] - sum(args[1:])),
@@ -544,6 +550,7 @@ snek_builtins = {
     'getattr': getattr_snek,
     'num?': is_num,
     'list?': is_list,
+    'display': print_snek,
 }
 
 
@@ -670,14 +677,26 @@ class Pair:
 
     def __str__(self):
         if self.list_mode:
-            string = "("
-            item = self
-            while item != Nil():
-                string += "{}{}".format(" " if string != '(' else "", item.car)
-                item = item.cdr
-                list_typecheck(item, "__str__", "INTERP ERROR: list_mode cons must be a list")
-            string += ")"
-            return string
+            car_lists = [(self, "(")]
+            output = ""
+            while car_lists:
+                (item, string) = car_lists.pop()
+                while item != Nil():
+                    if isinstance(item.car, Pair) and item.car.list_mode:
+                        car_lists.append((item.cdr, string))
+                        item = item.car
+                        string = "("
+                        continue
+                    string += "{}{}".format(" " if string != '(' else "", item.car)
+                    item = item.cdr
+                    list_typecheck(item, "__str__", "INTERP ERROR: list_mode cons must be a list")
+                string += ")"
+                if car_lists:
+                    (nitem, nstr) = car_lists[-1]
+                    car_lists[-1] = (nitem, nstr + " " + string)
+                else:
+                    output = string
+            return output
         else:
             return "[{} {}]".format(self.car, self.cdr)
 
@@ -763,6 +782,7 @@ def quasiquote(datum, env):
                 else:
                     it = None
                     if level <= 0:
+                        # print(repr(item))
                         it = evaluate(item, env)
                     else:
                         it = list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level), item)))
@@ -812,6 +832,7 @@ def evaluate(tree, env=None):
         else:
             return body[0]
     while loopc < loopt:
+        # print(loopc, loopt, repr(tree))
         if isinstance(tree, str):
             return env.lookup(tree)
         elif isinstance(tree, int) or isinstance(tree, float) or isinstance(tree, bool) or isinstance(tree, Nil):
@@ -899,7 +920,7 @@ def evaluate(tree, env=None):
                 if turtle:
                     return turtle(name, args)
             elif tree[0] == 'quote':
-                def quoter(datum):
+                def quoter(datum): # We only have to worry about the recursion limit here if someone decides to hand write a massively recursive function tree, then quote it
                     if isinstance(datum, list):
                         return list_snek(*[quoter(it) for it in datum])
                     else:
@@ -913,13 +934,25 @@ def evaluate(tree, env=None):
                         utree = []
                         def snek_to_py(lst):
                             if isinstance(lst, Pair):
-                                list_typecheck(datum, "unquote", "attempted to unquote a non-lost cons")
-                                nl = []
-                                while lst != Nil():
-                                    nl.append(snek_to_py(lst.car))
-                                    lst = lst.cdr
-                                    list_typecheck(datum, "unquote", "attempted to unquote a non-lost cons")
-                                return nl
+                                list_typecheck(lst, "unquote", "attempted to unquote a non-lost cons")
+                                output_pairs = [(lst, [])]
+                                onl = None
+                                while output_pairs:
+                                    (it, nl) = output_pairs.pop()
+                                    while it != Nil():
+                                        if isinstance(it.car, Pair) and it.list_mode:
+                                            output_pairs.append((it.cdr, nl))
+                                            it = it.car
+                                            nl = []
+                                        nl.append(it.car)
+                                        it = it.cdr
+                                        list_typecheck(it, "unquote", "attempted to unquote a non-lost cons")
+                                    if output_pairs:
+                                        (nit, nnl) = output_pairs[-1]
+                                        output_pairs[-1] = (nit, nnl + [nl])
+                                    else:
+                                        onl = nl
+                                return onl
                             else:
                                 return lst
                         # print(repr(snek_to_py(datum)))
