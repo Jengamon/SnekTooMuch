@@ -8,6 +8,19 @@
     )
 )
 (define (range start stop step)
+    ;(letrec
+    ;    (
+    ;        (
+    ;            range-iter (lambda (l i stop step)
+    ;                (if (>= i stop)
+    ;                    l
+    ;                    (range-iter (concat l (list i)) (+ i step) stop step)
+    ;                )
+    ;            )
+    ;        )
+    ;    )
+    ;    (range-iter (list) start stop step)
+    ;)
     (if (>= start stop)
         nil
         (concat (list start) (range (+ start step) stop step))
@@ -112,6 +125,23 @@
     )
 )
 
+(define (repeat i n)
+    (letrec
+        (
+            (
+                repeat-iter
+                (lambda (l i n) 
+                    (if (> n 0)
+                        (repeat-iter (concat l (list i)) i (- n 1))
+                        l
+                    )
+                )
+            )
+        )
+        (repeat-iter nil i n)
+    )
+)
+
 (define (forth stack code)
     (if (null code)
         stack
@@ -124,6 +154,38 @@
                 ; Assume this is an operator, and that it takes exactly two arguments
                 (forth (concat (skip stack 2) (list ,`(,item ,@(take stack 2)))) (cdr code))
             )
+        )
+    )
+)
+
+(define (abs n)
+    (if (>= n 0)
+        n
+        (- 0 n)
+    )
+)
+
+(define (frac n) 
+    (- n (int n))
+)
+
+(define (floor n) 
+    (- n (frac n))
+)
+
+(define (ceil n) 
+    (+ n (- 1 (frac n)))
+)
+
+(define (round n)
+    (if (>= n 0)
+        (if (>= (frac n) 0.5)
+            (ceil n)
+            (floor n)
+        )
+        (if (>= (frac n) -0.5)
+            (floor n)
+            (ceil n)
         )
     )
 )

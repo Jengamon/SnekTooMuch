@@ -369,20 +369,28 @@ def concat(*args):
     if not args:
         return Nil()
     else:
-        list_typecheck(args[0], "concat", "Can only join list cons")
-        olst = args[0].clone()
-        lst = olst
-        other = concat(*args[1:])
-        # Find the Nil valued cdr, and set that Pair's cdr to the "other" Pair
-        # Special case: if lst is nil, just return the other
-        if lst == Nil():
-            return other
+        [list_typecheck(lst, "concat", "Can only join list cons") for lst in args] # Typecheck all the lists
+        lists = list(args)
+        flst = None # First cons of list to return
+        nlst = None # Current end of flst
+        while lists:
+            clst = lists.pop(0).clone()
+            # print(flst, nlst, clst)
+            if clst != Nil():
+                if not flst:
+                    flst = clst
+                    nlst = clst
+                else:
+                    nlst.cdr = clst
+            else:
+                continue
+            while nlst and nlst.cdr != Nil():
+                nlst = nlst.cdr
+                list_typecheck(clst, "concat", "Can only join list cons")
+        if flst:
+            return flst
         else:
-            while lst.cdr != Nil():
-                lst = lst.cdr
-                list_typecheck(lst, "concat", "Can only join list cons")
-            lst.cdr = other
-        return olst
+            return Nil()
 
 def map_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
@@ -400,17 +408,31 @@ def map_snek(*args):
 def filter_snek(*args):
     if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
         raise SnekEvaluationError
-    new_list = args[1].clone()
-    if args[1] != Nil():
+    plst = args[1] # Points to query of list
+    flst = None # Points to begin of returned list
+    clst = None # Points to current passed of returned list
+    while plst != Nil():
         try:
-            cond = args[0](new_list.car)
-            if not cond:
-                new_list = filter_snek(args[0], new_list.cdr)
+            cond = args[0](plst.car)
         except TypeError as e:
             raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
-        if new_list != Nil() and new_list.cdr != Nil():
-            new_list.cdr = filter_snek(args[0], new_list.cdr)
-    return new_list
+        if cond:
+            it = plst.clone()
+            if not flst:
+                flst = it
+                clst = it
+            else:
+                clst.cdr = it
+                clst = it
+        plst = plst.cdr
+        list_typecheck(plst, "filter", "Can only filter list cons")
+    if clst and clst != Nil(): # Terminate the new list
+        clst.cdr = Nil()
+
+    if flst:
+        return flst
+    else:
+        return Nil()
 
 def reduce_snek(*args):
     if len(args) != 3 or not (isinstance(args[1], Pair) or args[1] == Nil()):
@@ -677,9 +699,12 @@ def quasiquote(datum, env):
                     else:
                         return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item))), False)
                 elif item[0] == 'unquote-splicing':
-                    val, splice = process_qquote_items(item[1], level - 1)
-                    list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
-                    return (val, True)
+                    if level == 1:
+                        val, splice = process_qquote_items(item[1], level - 1)
+                        list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
+                        return (val, True)
+                    else:
+                        return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item))), False)
                 else:
                     it = None
                     if level <= 0:
@@ -842,16 +867,20 @@ def evaluate(tree, env=None):
                     """Attempts to unquote data"""
                     if isinstance(datum, Pair):
                         utree = []
-                        while datum != Nil():
-                            if type(datum.car) == Pair: # A sublist
-                                # Convert to Python list, using unquoter
-                                utree.append(unquoter(datum.car))
+                        def snek_to_py(lst):
+                            if isinstance(lst, Pair):
+                                list_typecheck(datum, "unquote", "attempted to unquote a non-lost cons")
+                                nl = []
+                                while lst != Nil():
+                                    nl.append(snek_to_py(lst.car))
+                                    lst = lst.cdr
+                                    list_typecheck(datum, "unquote", "attempted to unquote a non-lost cons")
+                                return nl
                             else:
-                                utree.append(datum.car)
-                            datum = datum.cdr
-                            list_typecheck(datum, "unquote", "attempted to unquote a non-list cons")
-                        return evaluate(utree, env)
-                    if isinstance(datum, str) or isinstance(datum, list):
+                                return lst
+                        # print(repr(snek_to_py(datum)))
+                        return evaluate(snek_to_py(datum), env)
+                    elif isinstance(datum, str) or isinstance(datum, list):
                         val = evaluate(datum, env)
                         return unquoter(val)
                     else:
