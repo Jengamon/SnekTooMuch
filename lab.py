@@ -863,11 +863,12 @@ def evaluate(tree, env=None):
                     return turtle(name, args)
             elif tree[0] == 'quote':
                 assert_length('quote', 2)
-                datum = tree[1]
-                if isinstance(datum, list):
-                    return list_snek(*datum)
-                else:
-                    return datum
+                def quoter(datum):
+                    if isinstance(datum, list):
+                        return list_snek(*[quoter(it) for it in datum])
+                    else:
+                        return datum
+                return quoter(tree[1])
             elif tree[0] == 'unquote':
                 assert_length('unquote', 2)
                 datum = tree[1]
