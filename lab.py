@@ -343,7 +343,13 @@ def list_snek(*args):
     if not args:
         return Nil()
     else:
-        return Pair(args[0], list_snek(*args[1:]))
+        top = Pair(args[0], Nil())
+        l = top
+        for arg in args[1:]:
+            i = Pair(arg, Nil())
+            l.cdr = i
+            l = i
+        return top
 
 def length(*args):
     if len(args) != 1 or not (isinstance(args[0], Pair) or args[0] == Nil()):
