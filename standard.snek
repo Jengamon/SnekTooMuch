@@ -8,23 +8,23 @@
     )
 )
 (define (range start stop step)
-    ;(letrec
-    ;    (
-    ;        (
-    ;            range-iter (lambda (l i stop step)
-    ;                (if (>= i stop)
-    ;                    l
-    ;                    (range-iter (concat l (list i)) (+ i step) stop step)
-    ;                )
-    ;            )
-    ;        )
-    ;    )
-    ;    (range-iter (list) start stop step)
-    ;)
-    (if (>= start stop)
-        nil
-        (concat (list start) (range (+ start step) stop step))
+    (letrec
+       (
+           (
+               range-iter (lambda (l i stop step)
+                   (if (>= i stop)
+                       l
+                       (range-iter (concat l (list i)) (+ i step) stop step)
+                   )
+               )
+            )
+        )
+        (range-iter (list) start stop step)
     )
+    ;(if (>= start stop)
+    ;    nil
+    ;    (concat (list start) (range (+ start step) stop step))
+    ;)
 )
 (define (poly-val coeffs x)
     (if (=? coeffs nil)

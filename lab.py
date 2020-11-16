@@ -621,6 +621,19 @@ class Pair:
     def __repr__(self):
         return "[{} {}]".format(repr(self.car), repr(self.cdr))
 
+    def __eq__(self, o):
+        i = self
+        while not isinstance(i, Nil):
+            if isinstance(o, Pair) and isinstance(i, Pair):
+                if i.car != o.car:
+                    return False
+                else:
+                    i = i.cdr
+                    o = o.cdr
+            else:
+                return False
+        return isinstance(i, Nil) and isinstance(o, Nil)
+
     def __str__(self):
         if self.list_mode:
             string = "("
