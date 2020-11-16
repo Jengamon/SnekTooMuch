@@ -693,7 +693,7 @@ class Pair:
                 string += ")"
                 if car_lists:
                     (nitem, nstr) = car_lists[-1]
-                    car_lists[-1] = (nitem, nstr + " " + string)
+                    car_lists[-1] = (nitem, nstr + (" " if nstr != '(' else "") + string)
                 else:
                     output = string
             return output
@@ -736,69 +736,82 @@ def quasiquote(datum, env):
     #   1. override 'unquote' and introduce 'unquote-splicing' in the context of quasiquote
     #   2. Recusively detect 'unquote*' expressions in lists
     if isinstance(datum, list):
-        def process_splice_list(itr):
-            """
-            Merges a list of (item, splice_flag) into a Python list, where:
-            item - any valid external representation
-            splice_flag - if True, item must be a list, and it will be spliced into the Python list
-            """
-            quote = []
-            for (item, splice) in itr:
-                # print(item, splice)
-                if not splice:
-                    quote.append(item)
+        # print(datum)
+        # return None
+        output_data = None
+        pqueue = [(datum, 0, Nil(), None)]
+        splice = None # Splice Flag, None if we should list_snek data, True if splice, False if not splice
+        level = 1
+        while pqueue:
+            item, index, data, splice = pqueue.pop()
+            def add_to_data(it):
+                nonlocal data
+                # print(repr(data), it)
+                data = concat(data, list_snek(it))
+            def eval_literal():
+                nonlocal item, index, level, env
+                if level < 1:
+                    add_to_data(evaluate(item[index], env))
                 else:
-                    while item != Nil():
-                        quote.append(item.car)
-                        item = item.cdr
-                        list_typecheck(item, "unquote-splicing", "attempted to splice non-list cons")
-            return quote
-
-        def process_qquote_items(item, level=1):
-            """
-            Process quasiquoted items.
-            item(tree) - item to quasiquote
-            level(int, optional) - the level of quasiquoting. Expressions are only evaluated if the level <= 0
-            """
-            nonlocal env
-            if isinstance(item, list):
-                if len(item) < 1:
-                    return ([], False)
-                if item[0] == 'quasiquote':
-                    return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level + 1), item))), False)
-                elif item[0] == 'unquote':
-                    if level == 1:
-                        val, splice = process_qquote_items(item[1], level - 1)
-                        return (val, False)
+                    add_to_data(item[index])
+            while index < len(item):
+                # print(">>", level,  item, index, data, splice)
+                if isinstance(item[index], list):
+                    if not item[index]: # Empty list?
+                        add_to_data(Nil())
                     else:
-                        return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item))), False)
-                elif item[0] == 'unquote-splicing':
-                    if level == 1:
-                        val, splice = process_qquote_items(item[1], level - 1)
-                        list_typecheck(val, "unquote-splicing", "attempted to splice non-list cons")
-                        return (val, True)
-                    else:
-                        return (list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level - 1), item))), False)
+                        if level < 1:
+                            add_to_data(evaluate(item[index], env))
+                        else:
+                            pqueue.append((item, index + 1, data, splice))
+                            item = item[index]
+                            index = 0
+                            data = Nil()
+                            splice = None
+                            continue
+                elif index == 0 and isinstance(item[index], str):
+                    if item[index] == 'quasiquote':
+                        level += 1
+                    elif item[index] == 'unquote':
+                        level -= 1
+                        if level < 1:
+                            splice = False
+                            index += 1
+                            continue
+                    elif item[index] == 'unquote-splicing':
+                        level -= 1
+                        if level < 1:
+                            splice = True
+                            index += 1
+                            continue
+                    eval_literal()
                 else:
-                    it = None
-                    if level <= 0:
-                        # print(repr(item))
-                        it = evaluate(item, env)
-                    else:
-                        it = list_snek(*process_splice_list(map(lambda it: process_qquote_items(it, level), item)))
-                    return (it, False)
-            elif isinstance(item, str):
-                it = None
-                if level <= 0:
-                    it = evaluate(item, env)
+                    eval_literal()
+                # print("ADVANCE>>>")
+                index += 1
+            # print("><", pqueue, repr(data))
+            if pqueue:
+                nitem, nindex, ndata, nsplice = pqueue[-1]
+                # print("G?", repr(ndata), repr(data), splice)
+                if splice == None:
+                    try:
+                        pqueue[-1] = (nitem, nindex, concat(ndata, list_snek(data)), nsplice)
+                    except SnekEvaluationError:
+                        raise SnekEvaluationError("Internal error (E2): <internal data list> could not be joined with other list")
                 else:
-                    it = item
-                return (it, False)           
+                    if length(data) != 1:
+                        raise SnekEvaluationError("Internal error (E1): <internal unquote list> evaled to non-length 1 list, should be syntax error")
+                    sublist = data.car
+                    if splice: # Unquote splice
+                        try:
+                            pqueue[-1] = (nitem, nindex, concat(ndata, sublist), nsplice)
+                        except SnekEvaluationError:
+                            raise SnekEvaluationError("Metaprogramming error: unquote-splicing evaled to non-list")
+                    else: # Unquote data
+                        pqueue[-1] = (nitem, nindex, concat(ndata, list_snek(sublist)), nsplice)
             else:
-                return (item, False)
-        ret, splice = process_qquote_items(datum)
-        # Ignore splice at top-level, because there is nothing to splice into...
-        return ret
+                output_data = data
+        return output_data
     else:
         return datum
 
