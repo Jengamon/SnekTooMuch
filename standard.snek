@@ -203,7 +203,7 @@
                 ; Assume this is an operator, and that it takes exactly two arguments, unless this name is in saf
                 (if (find? saf item)
                     (~forth (concat (list `(,item ,@(take stack 1))) (skip stack 1)) asaf (cdr code))
-                    (~forth (concat (list `(,item ,(rev (take stack 2)))) (skip stack 2)) asaf (cdr code))
+                    (~forth (concat (list `(,item ,@(rev (take stack 2)))) (skip stack 2)) asaf (cdr code))
                 )
             )
         )
