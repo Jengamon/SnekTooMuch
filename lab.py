@@ -471,16 +471,16 @@ def set_car_mut(*args):
     return args[1]
 
 def import_snek(*args):
-    if len(args) != 1 or not isinstance(args[0], Pair) or not isinstance(args[0].car, str) or args[1].cdr != Nil():
-        raise SnekEvaluationError("py-import only accepts a symbol quote")
-    return __import__(args[0].datum)
+    if len(args) != 1 or not isinstance(args[0], str):
+        raise SnekEvaluationError("py-import only accepts a string/symbol quote")
+    return __import__(args[0])
 
 def getattr_snek(*args):
     # We can't actually check if for the module class directly (cuz idk how), but we do know that sys is of that type
     # So we just check if it and sys have the same type...
-    if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], Pair) or not isinstance(args[1].car, str) or args[1].cdr != Nil():
-        raise SnekEvaluationError("getattr can only get 2 arguments: a module, and a symbol quote")
-    return getattr(args[0], args[1].datum)
+    if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], str):
+        raise SnekEvaluationError("getattr can only get 2 arguments: a module, and a string/symbol quote")
+    return getattr(args[0], args[1])
 
 def num(*args):
     if len(args) != 1:
