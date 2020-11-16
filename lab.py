@@ -993,7 +993,7 @@ if __name__ == '__main__':
                         while tken:
                             trees.append(parse(tken, False))
                     except SnekSyntaxError as e:
-                        if e.incomplete and tokens and tokens[0] != '' and (tokens[0] == '(' or is_alpha(tokens[0][0]) or is_num(tokens[0][0])):
+                        if e.incomplete:
                             cont = input("..  ")
                             tokens += tokenize(cont)
                             trees = []
