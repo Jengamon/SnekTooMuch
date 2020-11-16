@@ -386,7 +386,7 @@ def concat(*args):
                 continue
             while nlst and nlst.cdr != Nil():
                 nlst = nlst.cdr
-                list_typecheck(clst, "concat", "Can only join list cons")
+                list_typecheck(nlst, "concat", "Can only join list cons")
         if flst:
             return flst
         else:
