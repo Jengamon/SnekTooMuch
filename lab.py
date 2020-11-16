@@ -57,13 +57,9 @@ class SnekEvaluationError(SnekError):
 # Tokenization and Parsing #
 ############################
 
-def is_num(x):
+def is_num_char(x):
     """Checks if x is a digit"""
     return ord('0') <= ord(x) <= ord('9')
-
-def is_alpha(x):
-    """Checks if x is [A-Za-z]"""
-    return ord('A') <= ord(x) <= ord('z')
 
 def tokenize(source):
     """
@@ -101,7 +97,7 @@ def tokenize(source):
             def parse_digits():
                 nonlocal idx
                 num = ""
-                while idx < len(source) and is_num(source[idx]):
+                while idx < len(source) and is_num_char(source[idx]):
                     num += source[idx]
                     idx += 1
                 return num
@@ -137,11 +133,11 @@ def tokenize(source):
             elif c == ';': # Handle comments, by skip to the newline, then the loop consumes the newline
                 while idx < len(source) and source[idx] != '\n':
                     idx += 1
-            elif is_num(c):
+            elif is_num_char(c):
                 yield parse_number()
             elif c == '-':
                 idx += 1
-                if idx < len(source) and is_num(source[idx]):
+                if idx < len(source) and is_num_char(source[idx]):
                     yield '-' + parse_number()
                 else:
                     idx -= 1
@@ -161,6 +157,44 @@ def tokenize(source):
     return list(filter(lambda x: not not x, _tokenize(source)))
 
 KEYWORDS = ["define", "lambda", "let", "letrec", "set!", "quote", "unquote", "unquote-splicing", "quasiquote", "turtle", "if", "and", "or"]
+def check_set_form(expr):
+    """Checks the set form of an S expression, and raises SnekSyntaxErrors when failing"""
+    def check_set_form_length(name, leng, exact=True):
+        if (len(expr) != leng and exact) or (len(expr) < leng and not exact):
+            raise SnekSyntaxError(incomplete=False, message="wrong set form for {}: expected {}{}, got {} arguments".format(name, "+" if not exact else "", leng - 1, len(expr) - 1))
+    if expr:
+        if expr[0] == 'define':
+            check_set_form_length("define", 3, not MULTIEXP_ENABLED)
+            if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
+                raise SnekSyntaxError("malformed define", incomplete=False)
+            if isinstance(expr[1], list) and expr[1][0] in KEYWORDS:
+                raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
+        elif expr[0] == 'lambda':
+            check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
+            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
+                raise SnekSyntaxError("malformed lambda", incomplete=False)
+        elif expr[0] == 'if':
+            check_set_form_length("if", 4)
+        elif expr[0] == 'let' or expr[0] == 'letrec':
+            check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
+            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
+                raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
+        elif expr[0] == 'set!':
+            check_set_form_length("set!", 3)
+            if not isinstance(expr[1], str):
+                raise SnekSyntaxError("set! must be a symbol followed by a value", incomplete=False)
+        elif expr[0] == 'quote':
+            check_set_form_length("quote", 2)
+        elif expr[0] == 'unquote':
+            check_set_form_length("unquote", 2)
+        elif expr[0] == 'quasiquote':
+            check_set_form_length("quasiquote", 2)
+        elif expr[0] == 'unquote-splicing':
+            check_set_form_length("unquote-splicing", 2)
+        elif expr[0] == 'turtle':
+            check_set_form_length("turtle", 2, False)
+
+QUOTEEXPR = ["quote", "quasiquote"]
 def parse(tokens, complete=True):
     """
     Parses a list of tokens, constructing a representation where:
@@ -176,57 +210,27 @@ def parse(tokens, complete=True):
     # - '(' for S-expressions
     # - a string beginning with a digit for numbers
     # - a string beginning with a non-digit for symbols
-    def parse_item(tokens):
+    def parse_item(tokens, set_expr=True):
         if tokens:
             token = tokens.pop(0)
             if token == '(':
                 # Parse out S-expression
                 expr = []
                 while len(tokens) > 0 and tokens[0] != ')':
-                    item = parse_item(tokens)
+                    if expr and expr[0] in QUOTEEXPR:
+                        item = parse_item(tokens, set_expr=False)
+                    else:
+                        item = parse_item(tokens, set_expr=set_expr)
                     expr.append(item)
                 if len(tokens) > 0 and tokens[0] == ')':
                     tokens.pop(0)
                 else:
                     raise SnekSyntaxError
-
-                # Set form checker
-                def check_set_form_length(name, leng, exact=True):
-                    if (len(expr) != leng and exact) or (len(expr) < leng and not exact):
-                        raise SnekSyntaxError(incomplete=False, message="wrong set form for {}: expected {} {}, got {} arguments".format(name, "==" if exact else ">=", leng - 1, len(expr) - 1))
-                if expr: # If expr is not empty
-                    if expr[0] == 'define':
-                        check_set_form_length("define", 3, not MULTIEXP_ENABLED)
-                        if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
-                            raise SnekSyntaxError("malformed define", incomplete=False)
-                        if isinstance(expr[1], list) and expr[1][0] in KEYWORDS:
-                            raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
-                    elif expr[0] == 'lambda':
-                        check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
-                        if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
-                            raise SnekSyntaxError("malformed lambda", incomplete=False)
-                    elif expr[0] == 'if':
-                        check_set_form_length("if", 4)
-                    elif expr[0] == 'let' or expr[0] == 'letrec':
-                        check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
-                        if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
-                            raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
-                    elif expr[0] == 'set!':
-                        check_set_form_length("set!", 3)
-                        if not isinstance(expr[1], str):
-                            raise SnekSyntaxError("set! must be a symbol followed by a value", incomplete=False)
-                    elif expr[0] == 'quote':
-                        check_set_form_length("quote", 2)
-                    elif expr[0] == 'unquote':
-                        check_set_form_length("unquote", 2)
-                    elif expr[0] == 'quasiquote':
-                        check_set_form_length("quasiquote", 2)
-                    elif expr[0] == 'unquote-splicing':
-                        check_set_form_length("unquote-splicing", 2)
-                    elif expr[0] == 'turtle':
-                        check_set_form_length("turtle", 2, False)
+                
+                if set_expr: # If expr is not empty
+                    check_set_form(expr)
                 return expr
-            elif is_num(token[0]) or (len(token) > 1 and token[0] == '-' and is_num(token[1])):
+            elif is_num_char(token[0]) or (len(token) > 1 and token[0] == '-' and is_num_char(token[1])):
                 try:
                     # Parse a number from the token
                     if sum(map(lambda c: 1 if c == '.' else 0, token)) == 1: # We have exactly 1 decimal point, a valid float
@@ -235,7 +239,8 @@ def parse(tokens, complete=True):
                         return int(token)
                     else: # Some weird numerical identifier
                         return token
-                except ValueError: # Something went wrong in parsing, treat as identifier
+                except ValueError as e: # Something went wrong in parsing, treat as identifier
+                    print(e)
                     return token
             elif token == '#t':
                 return True
@@ -244,10 +249,10 @@ def parse(tokens, complete=True):
             elif token == 'nil':
                 return Nil()
             elif token == '`':
-                item = parse_item(tokens)
+                item = parse_item(tokens, False)
                 return ["quasiquote", item]
             elif token == "'":
-                item = parse_item(tokens)
+                item = parse_item(tokens, False)
                 return ["quote", item]
             elif token == ',':
                 item = parse_item(tokens)
@@ -798,15 +803,6 @@ def evaluate(tree, env=None):
             return ["begin"] + body
         else:
             return body[0]
-    def assert_length(name, length, exact=True):
-        nonlocal tree
-        if (len(tree) != length and exact) or (len(tree) < length and not exact):
-            raise SnekEvaluationError("Metaprogramming error: {} expected {}{} argument{}".format(
-                name,
-                length - 1,
-                "+" if not exact else "",
-                "s" if length != 1 else "")
-        )
     while loopc < loopt:
         if isinstance(tree, str):
             return env.lookup(tree)
@@ -815,8 +811,11 @@ def evaluate(tree, env=None):
         elif isinstance(tree, list): # S-expression
             if len(tree) < 1:
                 raise SnekEvaluationError
+            try:
+                check_set_form(tree)
+            except SnekSyntaxError as e:
+                raise SnekEvaluationError("Metaprogramming error: {}".format(e))
             if tree[0] == 'define': # Definition time
-                assert_length('define', 3, not MULTIEXP_ENABLED)
                 name = None
                 value = None
                 body = multibody(tree[2:])
@@ -830,12 +829,10 @@ def evaluate(tree, env=None):
                 env.define(name, value)
                 return value
             elif tree[0] == 'lambda': # Lambda time
-                assert_length('lambda', 3, not MULTIEXP_ENABLED)
                 params = tree[1]
                 body = multibody(tree[2:])
                 return UserFunction(env, params, body)
             elif tree[0] == 'if':
-                assert_length('if', 4)
                 cond = evaluate(tree[1], env)
                 if cond:
                     tailcall(tree[2])
@@ -856,7 +853,6 @@ def evaluate(tree, env=None):
                         break
                 return x
             elif tree[0] == 'let':
-                assert_length('let', 3, not MULTIEXP_ENABLED)
                 bindings = []
                 for pair in tree[1]:
                     bindings.append((pair[0], evaluate(pair[1], env)))
@@ -867,7 +863,6 @@ def evaluate(tree, env=None):
                 tailcall(body, let_env)
             elif tree[0] == 'letrec':
                 # Create a shared environment for execution, and first define all names to None (so they exist, but aren't actually usable)
-                assert_length('letrec', 3, not MULTIEXP_ENABLED)
                 pairs = tree[1]
                 let_env = Environment(env)
                 for pair in pairs:
@@ -877,7 +872,6 @@ def evaluate(tree, env=None):
                 body = multibody(tree[2:])
                 tailcall(body, let_env)
             elif tree[0] == 'set!':
-                assert_length('set!', 3)
                 target_env = env
                 while True:
                     if tree[1] in target_env.defined_names():
@@ -890,13 +884,11 @@ def evaluate(tree, env=None):
                         else: # We've walked all parent, and haven't found the name. Fail.
                             raise SnekNameError("set! targeting not existant binding")
             elif tree[0] == 'turtle':
-                assert_length('turtle', 2, False)
                 name = tree[1]
                 args = list(map(lambda exp: evaluate(exp, env), tree[2:]))
                 if turtle:
                     return turtle(name, args)
             elif tree[0] == 'quote':
-                assert_length('quote', 2)
                 def quoter(datum):
                     if isinstance(datum, list):
                         return list_snek(*[quoter(it) for it in datum])
@@ -904,7 +896,6 @@ def evaluate(tree, env=None):
                         return datum
                 return quoter(tree[1])
             elif tree[0] == 'unquote':
-                assert_length('unquote', 2)
                 datum = tree[1]
                 def unquoter(datum):
                     """Attempts to unquote data"""
@@ -930,7 +921,6 @@ def evaluate(tree, env=None):
                         return datum
                 return unquoter(datum)
             elif tree[0] == 'quasiquote':
-                assert_length('quasiquote', 2)
                 return quasiquote(tree[1], env)
             else: # Environment call
                 target = evaluate(tree[0], env)
