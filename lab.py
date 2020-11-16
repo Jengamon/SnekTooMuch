@@ -491,10 +491,21 @@ def getattr_snek(*args):
         raise SnekEvaluationError("getattr can only get 2 arguments: a module, and a string/symbol quote")
     return getattr(args[0], args[1])
 
-def num(*args):
+def is_num(*args):
     if len(args) != 1:
-        raise SnekEvaluationError("num only accepts 1 argument")
+        raise SnekEvaluationError("num? only accepts 1 argument")
     return type(args[0]) == int or type(args[0]) == float
+
+def is_list(*args):
+    if len(args) != 1:
+        raise SnekEvaluationError("list? only accepts 1 argument")
+    l = args[0]
+    while isinstance(l, Pair) or isinstance(l, Nil):
+        if l == Nil():
+            return True
+        else:
+            l = l.cdr
+    return False # If we reach here without returning early, l is not Pair and not nil, so it is not a list
 
 snek_builtins = {
     '+': lambda *args: sum(args),
@@ -522,7 +533,8 @@ snek_builtins = {
     'set-car!': set_car_mut,
     'py-import': import_snek,
     'getattr': getattr_snek,
-    'num?': num,
+    'num?': is_num,
+    'list?': is_list,
 }
 
 
