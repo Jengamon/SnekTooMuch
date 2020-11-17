@@ -5,7 +5,6 @@ import doctest
 import sys
 TURTLE_ENABLED = False
 MULTIEXP_ENABLED = False
-QUASIQUOTE_HARDLIMIT = 1_000_000 # Hardlimit to number of iterations quasiquote can go through
 try:
     if TURTLE_ENABLED:
         from cturtle import turtle
@@ -754,7 +753,6 @@ def quasiquote(datum, env):
         output_data = None
         pqueue = [(datum, 0, Nil(), 1, None)]
         splice = None # Splice Flag, None if we should list_snek data, True if splice, False if not splice
-        ic = 0 # Total iter count. We have a hard-limit of a million
         while pqueue:
             item, index, data, level, splice = pqueue.pop()
             def add_to_data(it):
@@ -768,9 +766,6 @@ def quasiquote(datum, env):
                 else:
                     add_to_data(item[index])
             while index < len(item):
-                ic += 1
-                if ic >= QUASIQUOTE_HARDLIMIT:
-                    raise SnekEvaluationError("Metaprogramming error: quasiquote to more than {} iterations to resolve".format(ic))
                 # print(">>", level,  item, index, data, splice)
                 if isinstance(item[index], list):
                     if not item[index]: # Empty list?
@@ -803,7 +798,6 @@ def quasiquote(datum, env):
                     eval_literal()
                 else:
                     eval_literal()
-                # print("ADVANCE>>>")
                 index += 1
             # print("><", pqueue, repr(data))
             if pqueue:
