@@ -19,6 +19,7 @@ It interprets the 6.009 variant of LISP, Snek, but with a few additions:
     - `list?` (1 arg) -> returns if argument is list (list cons or nil) [iterative check, so a given cons is checked to make sure it is a *list* one]
     - `display` (variadric) -> Prints the result of joining all it's arguments (converted with python's `str`) with spaces, and returns that string
     - `join` (1+ variadric) -> joins its arguments using the first given argument as a separator
+- REPL colors if you run `pip install termcolor colorama`
 
 ## Things that could probably be added
 

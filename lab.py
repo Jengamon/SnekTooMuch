@@ -273,7 +273,7 @@ def parse(tokens, complete=True):
             raise SnekSyntaxError # Expected somthing, got nothing
     top_level = parse_item(tokens)
     if len(tokens) != 0 and complete:
-        raise SnekSyntaxError # We expected all tokens consumed, but this didn't happen, so something went wrong
+        raise SnekSyntaxError("Expected end of input, found {}".format(repr(tokens[0]))) # We expected all tokens consumed, but this didn't happen, so something went wrong
     return top_level
 
 def list_typecheck(val, name, msg):
@@ -536,7 +536,7 @@ def join_snek(*args):
 
 snek_builtins = {
     '+': lambda *args: sum(args),
-    '-': lambda *args: -args[0] if len(args) == 1 else (args[0] - sum(args[1:])),
+    '-': lambda *args: (-args[0] if len(args) == 1 else (args[0] - sum(args[1:])) if args else 0),
     '*': product,
     '/': division,
     '=?': all_equal,
@@ -1039,38 +1039,95 @@ if __name__ == '__main__':
     # doctest.testmod()
 
     repl_env = Environment(builtin_env)
-    MULTIEXP_ENABLED = True # Enable multi expressions for define, let and lambda
 
-    for arg in sys.argv[1:]:
-        evaluate_file(arg, repl_env)
+    # Cheat and use an argument parser, so that we can have a color repl flag
+    import argparse
+
+    parser = argparse.ArgumentParser(description="An interpreter for Snek")
+    parser.add_argument('-p', '--no-color', action='store_true') # Plain color flag
+    parser.add_argument('-s', '--no-multiexp', action='store_true') # Single expression flag
+    parser.add_argument('files', action='extend', nargs='*', type=str)
+    args = parser.parse_args()
+
+    MULTIEXP_ENABLED = not args.no_multiexp # Enable multi expressions for define, let and lambda
+
+    input_prompt = "in> "
+    multiline_prompt = "..  "
+    output_prompt = "out> "
+    error_prompt = "error> "
+    file_error_prompt_pre = "[in "
+    file_error_prompt_post = "] error> "
+
+    # A helper to allow for colored input requests
+    def cinput(prompt):
+        print(prompt, end='')
+        return input()
+
+    # Helper for printing REPL output
+    def repl_output(tree):
+        print(" ", output_prompt, "{}".format(evaluate(tree, repl_env)), sep='')
+
+    # Helper for printing REPL errors
+    def repl_error(err, file=None):
+        if file:
+            print(file_error_prompt_pre, file, file_error_prompt_post, "{}".format(err), sep='')
+        else:
+            print(" ", error_prompt, "{}".format(err), sep='')
+
+    if not args.no_color:
+        try:
+            # Enable REPL colors for great progress
+            from termcolor import colored
+            from colorama import init
+            init()
+            input_prompt = colored(input_prompt, 'cyan')
+            multiline_prompt = colored(multiline_prompt, 'cyan')
+            output_prompt = colored(output_prompt, 'green', attrs=['bold'])
+            error_prompt = colored(error_prompt, 'red', attrs=['bold'])
+            file_error_prompt_pre = colored(file_error_prompt_pre, 'red', attrs=['bold'])
+            file_error_prompt_post = colored(file_error_prompt_post, 'red', attrs=['bold'])
+        except ImportError:
+            pass
+
+    # Evaluate the files (printing errors where necessary)
+    for file in args.files:
+        try:
+            evaluate_file(file, repl_env)
+        except SnekError as e:
+            repl_error(e, file)
 
     while True:
-        string = input("in> ")
+        string = cinput(input_prompt)
         if string.lower() == "quit":
             break
         else:
             try:
-                if not string:
-                    continue # Jump back to loop start if string is empty
-                tokens = tokenize(string)
-                trees = []
-                while not trees:
-                    try:
-                        # print(tokens)
-                        tken = tokens[:]
-                        while tken:
-                            trees.append(parse(tken, False))
-                    except SnekSyntaxError as e:
-                        if e.incomplete:
-                            cont = input("..  ")
-                            tokens += tokenize(cont)
-                            trees = []
-                        else:
-                            # Cannot start an expression, error
-                            raise e
-                # print(trees)
-                for tree in trees:
-                    print("  out>", evaluate(tree, repl_env))
+                if MULTIEXP_ENABLED:
+                    if not string:
+                        continue # Jump back to loop start if string is empty
+                    tokens = tokenize(string)
+                    trees = []
+                    while not trees:
+                        try:
+                            # print(tokens)
+                            tken = tokens[:]
+                            while tken:
+                                trees.append(parse(tken, False))
+                        except SnekSyntaxError as e:
+                            if e.incomplete:
+                                cont = cinput(multiline_prompt)
+                                tokens += tokenize(cont)
+                                trees = []
+                            else:
+                                # Cannot start an expression, error
+                                raise e
+                    # print(trees)
+                    for tree in trees:
+                        repl_output(tree)
+                else:
+                    tokens = tokenize(string)
+                    tree = parse(tokens)
+                    repl_output(tree)
             except SnekError as e:
-                print("  error> {}".format(e))
+                repl_error(e)
         print()
