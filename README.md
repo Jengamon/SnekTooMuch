@@ -5,10 +5,10 @@ I put a little too much time into this, so it ended up a bit large.
 It interprets the 6.009 variant of LISP, Snek, but with a few additions:
 
 - Implicit multibodies (added `begin`) for `define`, `let`, `letrec` and `lambda`
-- `letrec`, a version of `let` that defines the environment and its added names before evaluating the binding values
+- `letrec`, a version of `let` that defines the environment and its added names before evaluating the bound values
 - `quote`, `unquote` for basic quoting and unquoting and `quasiquote` environment with support for `unquote` and `unquote-splicing` for generation tomfoolery
 - Token equivalents for {`quote` => `'`, `quasiquote` => `` ` ``, `unquote` => `,`, `unquote-splicing` => `,@`}
-- Non-standard builtins: {`int`, `set-car`, `py-import`, `getattr`, `num?`, `list?`, `display`}
+- Non-standard builtins: {`int`, `set-car`, `py-import`, `getattr`, `num?`, `list?`, `display`, `join`}
     - `int` (1 args) -> returns the argument passed through python's `int` builtin
     - `set-car` (2 args: cons val) -> mutates the given cons `car` value to val
     - `py-import` (1 arg) -> returns a python module with the given name (use `quote` to give a name)
