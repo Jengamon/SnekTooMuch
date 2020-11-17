@@ -254,8 +254,12 @@
     ,(~forth stack asaf code)
 )
 
+(define (~~sum l)
+    ``(~forth nil nil ',(concat (rev (list ,@l)) (map (lambda (x) '+) (skip (list ,@l) 1))))
+)
+
 (define (~sum l)
-    `(~forth nil nil '(,@l ,@(map (lambda (x) '+) (skip l 1))))
+    `(~forth nil nil '(,@(rev l) ,@(map (lambda (x) '+) (skip l 1))))
 )
 
 (define (~countv n)

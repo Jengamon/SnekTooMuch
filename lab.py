@@ -1004,7 +1004,7 @@ def evaluate(tree, env=None):
                 except TypeError as e: # Cannot call target as a function
                     raise SnekEvaluationError(e)
         else:
-            raise SnekEvaluationError("cannot evaluate value {} of type {}".format(repr(tree), type(tree))) # Unexpected type encountered
+            raise SnekEvaluationError("cannot evaluate value of type {}".format(type(tree))) # Unexpected type encountered
         loopc += 1
 
 def result_and_env(tree, env=None):
