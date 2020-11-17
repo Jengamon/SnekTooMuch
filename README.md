@@ -23,5 +23,5 @@ It interprets the 6.009 variant of LISP, Snek, but with a few additions:
 ## Things that could probably be added
 
 - A proper string implementation, I just use `quote` whenever I want a string, but that doesn't allow for strings 
-with spaces or the *word* `nil` to be generated. (except using some tricks)
+with spaces.
 - Umm, it is possible to generate lists that are uninterpretable due to Python recursion limits. See if that's fixable.
