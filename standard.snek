@@ -139,6 +139,16 @@
     )
 )
 
+(define (playu n)
+    (let
+        ((ping 'pong) (pong 'ping))
+        (if (> n 0)
+            ,(playu (- n 1))
+            pong
+        )
+    )
+)
+
 (define (take l n)
     (letrec
         (
