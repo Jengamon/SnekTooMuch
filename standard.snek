@@ -255,7 +255,7 @@
 )
 
 (define (~sum l)
-    `(~forth nil nil '(,@l ,@(map (lambda (x) '+) l)))
+    `(~forth nil nil '(,@l ,@(map (lambda (x) '+) (skip l 1))))
 )
 
 (define (~countv n)
@@ -280,4 +280,14 @@
         )
     ) 
     `(tree ',(tree-list l))
+)
+
+; MACRO TESTBENCHING
+
+(define (~~slowsum n) ``(reduce + ,`(list ,@(range 0 (+ ,n 1) 1)) 0))
+(define (~slowsum n) `(reduce + ,`(list ,@(range 0 (+ n 1) 1)) 0))
+(define (fastsum n) (int (/ (* n (+ n 1)) 2)))
+
+(define (macro-test b)
+    (map (lambda (n) (display 'test n) (let ((sm (~~slowsum n)) (s (~slowsum n)) (as (fastsum n))) (and (=? ,sm s) (=? ,s as)))) (range 0 b 1))
 )
