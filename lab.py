@@ -1092,6 +1092,8 @@ if __name__ == '__main__':
             evaluate_file(file, repl_env)
         except SnekError as e:
             repl_error(e, file)
+        except RecursionError:
+            repl_error("too much recursion, not evaluatable", file)
 
     while True:
         string = cinput(input_prompt)
@@ -1127,4 +1129,6 @@ if __name__ == '__main__':
                     repl_output(tree)
             except SnekError as e:
                 repl_error(e)
+            except RecursionError:
+                repl_error("too much recursion, not evaluatable")
         print()
