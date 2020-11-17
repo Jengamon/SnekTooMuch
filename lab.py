@@ -519,9 +519,20 @@ def is_list(*args):
 
 def print_snek(*args):
     '''Prints all args to output, and returns the displayed string'''
-    output = ' '.join(map(str, args))
+    output = join_snek(' ', *args)
     print(output)
     return output
+
+def join_snek(*args):
+    '''Joins its arguments similar to how Python does it'''
+    if not args:
+        raise SnekEvaluationError("join must be given at least 1 argument")
+    if args[0] != Nil():
+        sep = str(args[0])
+    else:
+        sep = ''
+    return sep.join(map(str, args[1:]))
+
 
 snek_builtins = {
     '+': lambda *args: sum(args),
@@ -552,6 +563,7 @@ snek_builtins = {
     'num?': is_num,
     'list?': is_list,
     'display': print_snek,
+    'join': join_snek,
 }
 
 
