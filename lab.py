@@ -982,7 +982,10 @@ def evaluate(tree, env=None):
                     """Attempts to unquote data"""
                     if isinstance(datum, Pair):
                         return evaluate(snek_to_py(datum), env)
-                    elif isinstance(datum, str) or isinstance(datum, list):
+                    elif isinstance(datum, str):
+                        val = evaluate(datum, env)
+                        return val
+                    elif isinstance(datum, list):
                         val = evaluate(datum, env)
                         return unquoter(val)
                     else:
