@@ -1,6 +1,8 @@
 SnekTooMuch - A Snek Interpreter That's a Bit Much
 ==================================================
 
+## Overview
+
 I put a little too much time into this, so it ended up a bit large.
 It interprets the 6.009 variant of LISP, Snek, but with a few additions:
 
@@ -18,7 +20,7 @@ It interprets the 6.009 variant of LISP, Snek, but with a few additions:
     - `display` (variadric) -> Prints the result of joining all it's arguments (converted with python's `str`) with spaces, and returns that string
     - `join` (1+ variadric) -> joins its arguments using the first given argument as a separator
 
-Things that could probably be added:
+## Things that could probably be added
 
 - A proper string implementation, I just use `quote` whenever I want a string, but that doesn't allow for strings 
 with spaces or the *word* `nil` to be generated. (except using some tricks)
