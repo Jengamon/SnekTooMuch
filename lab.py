@@ -883,7 +883,7 @@ def evaluate(tree, env=None):
             return tree  
         elif isinstance(tree, list): # S-expression
             if len(tree) < 1:
-                raise SnekEvaluationError
+                raise SnekEvaluationError("Can't evaluate empty list")
             try:
                 check_set_form(tree)
             except SnekSyntaxError as e:
