@@ -327,7 +327,7 @@
     (map (lambda (n) (display 'test n) (let ((sm (~~slowsum n)) (s (~slowsum n)) (as (fastsum n))) (and (=? ,sm s) (=? ,s as)))) (range 0 b 1))
 )
 
-; A list enumerator
+; A list enumerator (produces a list of (index val) lists)
 (define (enumerate l) 
     (map (lambda (x) `(,x ,(elt-at-index l x))) (range 0 (length l) 1))
 )
