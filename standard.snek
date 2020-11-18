@@ -16,14 +16,12 @@
     (letrec
         (
             (
-                concat-iter
-                (lambda (l ls)
-                    (if (empty? ls)
-                        l
-                        (if (list? (car ls))
-                            (concat-iter (concat l (car ls)) (cdr ls))
-                            (concat-iter (concat l (list (car ls))) (cdr ls))
-                        )
+                (concat-iter l ls)
+                (if (empty? ls)
+                    l
+                    (if (list? (car ls))
+                        (concat-iter (concat l (car ls)) (cdr ls))
+                        (concat-iter (concat l (list (car ls))) (cdr ls))
                     )
                 )
             )
@@ -36,12 +34,10 @@
     (letrec
         (
             (
-                rev-iter
-                (lambda (l t)
-                    (if (empty? t)
-                        l
-                        (rev-iter (concat (list (car t)) l) (cdr t))
-                    )
+                (rev-iter l t)
+                (if (empty? t)
+                    l
+                    (rev-iter (concat (list (car t)) l) (cdr t))
                 )
             )
         )
@@ -53,12 +49,10 @@
     (letrec
         (
             (
-                rev-iter
-                (lambda (l t)
-                    (if (empty? t)
-                        l
-                        (rev-iter `(concat (list ,(car t)) ,l) (cdr t))
-                    )
+                (rev-iter l t)
+                (if (empty? t)
+                    l
+                    (rev-iter `(concat (list ,(car t)) ,l) (cdr t))
                 )
             )
         )
@@ -70,11 +64,10 @@
     (letrec
        (
            (
-               range-iter (lambda (l i stop step)
-                   (if (>= i stop)
-                       l
-                       (range-iter (concat-items l i) (+ i step) stop step)
-                   )
+               (range-iter l i stop step)
+               (if (>= i stop)
+                   l
+                   (range-iter (concat-items l i) (+ i step) stop step)
                )
             )
         )
@@ -116,24 +109,20 @@
     (letrec
         (
             (
-                ping 
-                (lambda (n) 
-                    (concat '(ping) 
-                        (if (> n 0) 
-                            (pong (- n 1)) 
-                            nil
-                        )
+                (ping n)
+                (concat '(ping) 
+                    (if (> n 0) 
+                        (pong (- n 1)) 
+                        nil
                     )
                 )
             )
             (
-                pong
-                (lambda (n) 
-                    (concat '(pong)
-                        (if (> n 0) 
-                            (ping (- n 1)) 
-                            nil
-                        )
+                (pong n)
+                (concat '(pong)
+                    (if (> n 0) 
+                        (ping (- n 1)) 
+                        nil
                     )
                 )
             )
@@ -147,15 +136,13 @@
     (letrec 
         (
             (
-                play-iter
-                (lambda (l n i)
-                    (if (>= n 0) 
-                        (if (=? i 'ping)
-                            (play-iter (concat-items l i) (- n 1) 'pong)
-                            (play-iter (concat-items l i) (- n 1) 'ping)
-                        )
-                        l
+                (play-iter l n i)
+                (if (>= n 0) 
+                    (if (=? i 'ping)
+                        (play-iter (concat-items l i) (- n 1) 'pong)
+                        (play-iter (concat-items l i) (- n 1) 'ping)
                     )
+                    l
                 )
             )
         )
@@ -178,14 +165,12 @@
     (letrec
         (
             (
-                take-iter
-                (lambda (r l n)
-                    (if (empty? l)
+                (take-iter r l n)
+                (if (empty? l)
+                    r
+                    (if (> n 0)
+                        (take-iter (concat r (list (car l))) (cdr l) (- n 1))
                         r
-                        (if (> n 0)
-                            (take-iter (concat r (list (car l))) (cdr l) (- n 1))
-                            r
-                        )
                     )
                 )
             )
@@ -208,12 +193,10 @@
     (letrec
         (
             (
-                repeat-iter
-                (lambda (l i n) 
-                    (if (> n 0)
-                        (repeat-iter (concat l (list i)) i (- n 1))
-                        l
-                    )
+                (repeat-iter l i n) 
+                (if (> n 0)
+                    (repeat-iter (concat l (list i)) i (- n 1))
+                    l
                 )
             )
         )

@@ -178,7 +178,7 @@ def check_set_form(expr):
             check_set_form_length("if", 4)
         elif expr[0] == 'let' or expr[0] == 'letrec':
             check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
-            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and isinstance(i[0], str), expr[1]))):
+            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and (isinstance(i[0], str) or (isinstance(i[0], list) and len(i[0]) > 0)), expr[1]))):
                 raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
         elif expr[0] == 'set!':
             check_set_form_length("set!", 3)
@@ -910,6 +910,16 @@ def evaluate(tree, env=None):
         else:
             return body[0]
     def create_lambda(params_list_or_str, body):
+        """
+        Creates a lambda (UserFunction).
+        params_list_or_str - 
+            if rest params are allowed
+                str - a rest param with all args mapped to it
+                list - a list where . comes before the name of a rest param
+            if rest params not allowed
+                list - a list of params
+        body - body of the lambda to create
+        """
         nonlocal env
         rest_name = None
         params = []
@@ -934,6 +944,23 @@ def evaluate(tree, env=None):
         else:
             raise SnekEvaluationError("Internal error: Cannot create lambda using params of type {}".format(type(params_list_or_str)))
         return UserFunction(env, params, body, rest_name)
+    def process_let_binding(binding):
+        """
+        Takes in a pair (lists w/ 2 members) and processes them
+        if first arg is string
+            - passes through pair as is (as a tuple)
+        if first arg is list
+            - makes the second argument a lambda using proper syntax convertions
+        """
+        if isinstance(binding[0], str):
+            return tuple(binding)
+        elif isinstance(binding[0], list):
+            name = binding[0][0]
+            params = binding[0][1:]
+            body = binding[1]
+            return tuple([name, ['lambda', params, body]])
+        else:
+            raise SnekEvaluationError('let binding pair cannot process type {}'.format(type(binding)))
     while loopc < loopt:
         # print(loopc, loopt, repr(tree))
         if isinstance(tree, str):
@@ -990,7 +1017,8 @@ def evaluate(tree, env=None):
                 return x
             elif tree[0] == 'let':
                 bindings = []
-                for pair in tree[1]:
+                pairs = [process_let_binding(pair) for pair in tree[1]]
+                for pair in pairs:
                     bindings.append((pair[0], evaluate(pair[1], env)))
                 let_env = Environment(env)
                 for (name, value) in bindings:
@@ -999,7 +1027,7 @@ def evaluate(tree, env=None):
                 tailcall(body, let_env)
             elif tree[0] == 'letrec':
                 # Create a shared environment for execution, and first define all names to None (so they exist, but aren't actually usable)
-                pairs = tree[1]
+                pairs = [process_let_binding(pair) for pair in tree[1]]
                 let_env = Environment(env)
                 for pair in pairs:
                     let_env.define(pair[0], None)
