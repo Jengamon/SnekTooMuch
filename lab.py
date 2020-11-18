@@ -178,7 +178,8 @@ def check_set_form(expr):
             check_set_form_length("if", 4)
         elif expr[0] == 'let' or expr[0] == 'letrec':
             check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
-            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, list) and len(i) == 2 and (isinstance(i[0], str) or (isinstance(i[0], list) and len(i[0]) > 0)), expr[1]))):
+            if not (isinstance(expr[1], list) and 
+                all(map(lambda i: isinstance(i, list) and len(i) == 2 and (isinstance(i[0], str) or (isinstance(i[0], list) and len(i[0]) > 0 and all(map(lambda i: isinstance(i, str), i[0])))), expr[1]))):
                 raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
         elif expr[0] == 'set!':
             check_set_form_length("set!", 3)
