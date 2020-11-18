@@ -409,10 +409,10 @@ def concat(*args):
             else:
                 continue
             while nlst and nlst.cdr != Nil():
+                list_typecheck(nlst.cdr, "concat", "Can only join list cons")
                 it = nlst.cdr.clone()
                 nlst.cdr = it
                 nlst = it
-                list_typecheck(nlst, "concat", "Can only join list cons")
         if flst:
             return flst
         else:
