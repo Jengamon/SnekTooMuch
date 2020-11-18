@@ -93,7 +93,7 @@
         (* n (factorial (- n 1)))
     )
 )
-(define (factorial-trec x) ; tail-recursive
+(define (factorial-iter x) ; tail-recursive
     (define (fact-tail x accum)
         (if (=? x 0) 
             accum
@@ -325,4 +325,9 @@
 
 (define (macro-test b)
     (map (lambda (n) (display 'test n) (let ((sm (~~slowsum n)) (s (~slowsum n)) (as (fastsum n))) (and (=? ,sm s) (=? ,s as)))) (range 0 b 1))
+)
+
+; A list enumerator
+(define (enumerate l) 
+    (map (lambda (x) `(,x ,(elt-at-index l x))) (range 0 (length l) 1))
 )
