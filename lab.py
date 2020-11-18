@@ -248,9 +248,9 @@ def parse(tokens, complete=True):
                     print(e)
                     return token
             elif token == '#t':
-                return True
+                return Boolean(True)
             elif token == '#f':
-                return False
+                return Boolean(False)
             elif token == 'nil':
                 return Nil()
             elif token == '`':
@@ -281,6 +281,10 @@ def list_typecheck(val, name, msg):
     if type(val) != Pair and val != Nil():
         raise SnekEvaluationError(name + " error: " + msg)
 
+def boolean_check(bln, name):
+    if not isinstance(bln, Boolean):
+        raise SnekSyntaxError("cannot use {} given a non-boolean (use a comparison operator)".format(name))
+
 ######################
 # Built-in Functions #
 ######################
@@ -302,10 +306,10 @@ def all_equal(*args): # =?
         item = args[0]
         for o in args[1:]:
             if o != item:
-                return False
-        return True
+                return Boolean(False)
+        return Boolean(True)
     else:
-        return True
+        return Boolean(True)
 
 def comparison(op):
     """
@@ -321,16 +325,17 @@ def comparison(op):
                 if op(item, o):
                     item = o
                 else:
-                    return False
-            return True
+                    return Boolean(False)
+            return Boolean(True)
         else:
-            return True
+            return Boolean(True)
     return comp
 
 def not_fn(*args):
     if len(args) != 1:
         raise SnekEvaluationError("not must be given 1 argument")
-    return not args[0]
+    boolean_check(args[0], "not")
+    return Boolean(not args[0].value)
 
 def cons(*args):
     if len(args) != 2:
@@ -510,7 +515,7 @@ def getattr_snek(*args):
 def is_num(*args):
     if len(args) != 1:
         raise SnekEvaluationError("num? must be given 1 argument")
-    return type(args[0]) == int or type(args[0]) == float
+    return Boolean(type(args[0]) == int or type(args[0]) == float)
 
 def is_list(*args):
     if len(args) != 1:
@@ -518,10 +523,10 @@ def is_list(*args):
     l = args[0]
     while isinstance(l, Pair) or isinstance(l, Nil):
         if l == Nil():
-            return True
+            return Boolean(True)
         else:
             l = l.cdr
-    return False # If we reach here without returning early, l is not Pair and not nil, so it is not a list
+    return Boolean(False) # If we reach here without returning early, l is not Pair and not nil, so it is not a list
 
 def print_snek(*args):
     '''Prints all args to output, and returns the displayed string'''
@@ -736,12 +741,29 @@ class Nil:
         else:
             return False
 
-    def __repr__(self):
+    def __str__(self):
         return "nil"
 
     def clone(self):
         """For convenience. Returns self, due to how Nil works."""
         return self
+
+class Boolean:
+    """Used to represent boolean objects."""
+    def __init__(self, v):
+        self.value = v
+
+    def __eq__(self, o):
+        if isinstance(o, Boolean):
+            return self.value == o.value
+        else:
+            return False
+
+    def __str__(self):
+        if self.value:
+            return "#t"
+        else:
+            return "#f"
 
 builtin_env = Environment(locked=True)
 
@@ -916,7 +938,7 @@ def evaluate(tree, env=None):
         # print(loopc, loopt, repr(tree))
         if isinstance(tree, str):
             return env.lookup(tree)
-        elif isinstance(tree, int) or isinstance(tree, float) or isinstance(tree, bool) or isinstance(tree, Nil):
+        elif isinstance(tree, int) or isinstance(tree, float) or isinstance(tree, Boolean) or isinstance(tree, Nil):
             return tree  
         elif isinstance(tree, list): # S-expression
             if len(tree) < 1:
@@ -942,22 +964,28 @@ def evaluate(tree, env=None):
                 return create_lambda(tree[1], body)
             elif tree[0] == 'if':
                 cond = evaluate(tree[1], env)
-                if cond:
+                # print(repr(cond))
+                boolean_check(cond, "if")
+                if cond.value:
                     tailcall(tree[2])
                 else:
                     tailcall(tree[3])
             elif tree[0] == 'and':
-                x = True
+                x = Boolean(True)
                 for expr in tree[1:]:
-                    x = x and evaluate(expr, env)
-                    if not x:
+                    val = evaluate(expr, env)
+                    boolean_check(val, "and")
+                    x = Boolean(x.value and val.value)
+                    if not x.value:
                         break
                 return x
             elif tree[0] == 'or':
-                x = False
+                x = Boolean(False)
                 for expr in tree[1:]:
-                    x = x or evaluate(expr, env)
-                    if x:
+                    val = evaluate(expr, env)
+                    boolean_check(val, "or")
+                    x = Boolean(x.value or val.value)
+                    if x.value:
                         break
                 return x
             elif tree[0] == 'let':
