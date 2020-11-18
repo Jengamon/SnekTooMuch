@@ -4,7 +4,7 @@
 ; ~name means that this method generates code that can be executed (basically a macro)
 
 (define (empty? l)
-    (empty? l)
+    (=? nil l)
 )
 
 (define (non-empty? l) 
