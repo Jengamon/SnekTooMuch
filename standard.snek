@@ -7,6 +7,27 @@
     (=? nil l)
 )
 
+; Redefine concat using rest params to allow non-lists to be concated by converting them to lists
+(define (concat-items . lists)
+    (letrec
+        (
+            (
+                concat-iter
+                (lambda (l ls)
+                    (if (=? nil ls)
+                        l
+                        (if (list? (car ls))
+                            (concat-iter (concat l (car ls)) (cdr ls))
+                            (concat-iter (concat l (list (car ls))) (cdr ls))
+                        )
+                    )
+                )
+            )
+        )
+        (concat-iter nil lists)
+    )
+)
+
 (define (rev l) 
     (letrec
         (
@@ -48,7 +69,7 @@
                range-iter (lambda (l i stop step)
                    (if (>= i stop)
                        l
-                       (range-iter (concat l (list i)) (+ i step) stop step)
+                       (range-iter (concat-items l i) (+ i step) stop step)
                    )
                )
             )
@@ -126,8 +147,8 @@
                 (lambda (l n i)
                     (if (>= n 0) 
                         (if (=? i 'ping)
-                            (play-iter (concat l (list i)) (- n 1) 'pong)
-                            (play-iter (concat l (list i)) (- n 1) 'ping)
+                            (play-iter (concat-items l i) (- n 1) 'pong)
+                            (play-iter (concat-items l i) (- n 1) 'ping)
                         )
                         l
                     )
@@ -248,7 +269,7 @@
                     (item (car code))
                 )
                 (if (num? item)
-                    (~forth (concat (list item) stack) asaf (cdr code))
+                    (~forth (concat-items item stack) asaf (cdr code))
                     ; Assume this is an operator, and that it takes exactly two arguments, unless this name is in saf
                     (if (find? saf item)
                         (~forth (concat (list `(,item ,@(take stack 1))) (skip stack 1)) asaf (cdr code))
