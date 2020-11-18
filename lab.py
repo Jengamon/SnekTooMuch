@@ -1058,7 +1058,12 @@ if __name__ == '__main__':
     # A helper to allow for colored input requests
     def cinput(prompt):
         print(prompt, end='')
-        return input()
+        try:
+            return input()
+        except KeyboardInterrupt:
+            return None
+        except EOFError:
+            return None
 
     # Helper for printing REPL output
     def repl_output(tree):
@@ -1097,7 +1102,7 @@ if __name__ == '__main__':
 
     while True:
         string = cinput(input_prompt)
-        if string.lower() == "quit":
+        if string == None or string.lower() == "quit":
             break
         else:
             try:
