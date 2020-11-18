@@ -171,7 +171,7 @@ def check_set_form(expr):
                 raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
         elif expr[0] == 'lambda':
             check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
-            if not (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1]))):
+            if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1])))):
                 raise SnekSyntaxError("malformed lambda", incomplete=False)
         elif expr[0] == 'if':
             check_set_form_length("if", 4)
@@ -632,16 +632,19 @@ class Environment:
 
 class UserFunction:
     """Represents functions defined in Snek code"""
-    def __init__(self, parent, params, body):
+    def __init__(self, parent, params, body, rest_name=None):
         """
         Intializer.
         parent is the encosing encironment from creation time, and
         params are a list of names to bind arguments to when called.
         body in the code to execute when this function is called
+        rest_name if not None is the name to bind the list of the rest of the arguments when called (so can handle more arguments)
+            if None, do not allow for more arguments
         """
         self.parent = parent
         self.params = params
         self.body = body
+        self.rest_name = rest_name
 
     def __call__(self, *args):
         """
@@ -655,14 +658,16 @@ class UserFunction:
 
     def define_args(self, env, *args):
         """Define the params using the args given in a given environment"""
-        if len(self.params) != len(args):
-            raise SnekEvaluationError("wrong number of arguments (expected {}, got {})".format(len(self.params), len(args)))
+        if (len(self.params) != len(args) and not self.rest_name) or len(self.params) > len(args):
+            raise SnekEvaluationError("wrong number of arguments (expected {}{}, got {})".format(len(self.params), "+" if self.rest_name else "", len(args)))
         for (i, param) in enumerate(self.params):
             env.define(param, args[i])
+        if self.rest_name:
+            env.define(self.rest_name, list_snek(*args[len(self.params):]))
 
     def __repr__(self):
         pl = len(self.params)
-        return "function object ({} arg{})".format(pl, "s" if pl != 1 else "")
+        return "function object ({}{} arg{})".format(pl, "+" if self.rest_name else "", "s" if pl != 1 else "")
 
 class Pair:
     """A LISP 'non atomic S-expression'"""
@@ -875,6 +880,33 @@ def evaluate(tree, env=None):
             return ["begin"] + body
         else:
             return body[0]
+    def create_lambda(params_list_or_str, body):
+        nonlocal env
+        rest_name = None
+        params = []
+        if isinstance(params_list_or_str, str):
+            rest_name = params_list_or_str
+        elif isinstance(params_list_or_str, list):
+            rest_dot = False # Has the rest dot been encountered?
+            for param in params_list_or_str:
+                if param == '.' and not rest_dot:
+                    rest_dot = True
+                elif rest_dot and not rest_name:
+                    rest_name = param
+                elif rest_dot and rest_name: 
+                    # Valid Snek does technically allow for '.' as a param name, so it is not the rest name syntax, then actually reinterpret as names
+                    rest_dot = False
+                    params.append('.')
+                    params.append(rest_name)
+                    rest_name = None
+                    params.append(param)
+                else:
+                    params.append(param)
+            if rest_dot and not rest_name:
+                params.append('.') # We didn't encounter a rest param, so we should use '.' as a param name
+        else:
+            raise SnekEvaluationError("Internal error: Cannot create lambda using params of type {}".format(type(params_list_or_str)))
+        return UserFunction(env, params, body, rest_name)
     while loopc < loopt:
         # print(loopc, loopt, repr(tree))
         if isinstance(tree, str):
@@ -897,14 +929,12 @@ def evaluate(tree, env=None):
                     value = evaluate(body, env)
                 elif isinstance(tree[1], list):
                     name = tree[1][0]
-                    params = tree[1][1:]
-                    value = UserFunction(env, params, body)
+                    value = create_lambda(tree[1][1:], body)
                 env.define(name, value)
                 return value
             elif tree[0] == 'lambda': # Lambda time
-                params = tree[1]
                 body = multibody(tree[2:])
-                return UserFunction(env, params, body)
+                return create_lambda(tree[1], body)
             elif tree[0] == 'if':
                 cond = evaluate(tree[1], env)
                 if cond:
