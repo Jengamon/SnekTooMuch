@@ -19,10 +19,15 @@ It interprets the 6.009 variant of LISP, Snek, but with a few additions:
     - `list?` (1 arg) -> returns if argument is list (list cons or nil) [iterative check, so a given cons is checked to make sure it is a *list* one]
     - `display` (variadric) -> Prints the result of joining all it's arguments (converted with python's `str`) with spaces, and returns that string
     - `join` (1+ variadric) -> joins its arguments using the first given argument as a separator
+- Rest parameters: following a `.` with a single other name will allow lambdas to handle more arguments than their signature suggests, as the runtime
+    will pass the rest of the arguments into the lambda as a list using this name
+- The `(define (x) 3)` define lambda syntax is now available for `let`/`letrec` bindings: `(let (((x) 3)) x)` will return the same thing, but doesn't define name `x` in the surrounding environment
+- New variadric `lambda` syntax (from Scheme, I think): `(lambda args args)` will return a list of all arguments given to it.
 - REPL colors if you run `pip install termcolor colorama` before opening the repl
 - Support for commandline flags
     - `-p` or `--no-color` for plain output (w/ no colors)
     - `-s` or `--no-multiexp` for no multiexpressions
+    - `-d` or `--no-rest` to disable rest parameters
 
 ## Things that could probably be added
 

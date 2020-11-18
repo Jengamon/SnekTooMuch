@@ -454,7 +454,8 @@ def filter_snek(*args):
             cond = args[0](plst.car)
         except TypeError as e:
             raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
-        if cond:
+        boolean_check(cond, "filter")
+        if cond.value:
             it = plst.clone()
             if not flst:
                 flst = it
