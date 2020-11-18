@@ -4,7 +4,8 @@
 import doctest
 import sys
 TURTLE_ENABLED = False
-MULTIEXP_ENABLED = False
+MULTIEXP_ENABLED = False # Allow multiexpression bodies for define, let, letrec, and lambda
+REST_PARAMS_ENABLED = False # Allow rest parameters (makes . a special name not usable in param list by themselves)
 try:
     if TURTLE_ENABLED:
         from cturtle import turtle
@@ -171,7 +172,7 @@ def check_set_form(expr):
                 raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
         elif expr[0] == 'lambda':
             check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
-            if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1])))):
+            if not ((isinstance(expr[1], str) and REST_PARAMS_ENABLED) or (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1])))):
                 raise SnekSyntaxError("malformed lambda", incomplete=False)
         elif expr[0] == 'if':
             check_set_form_length("if", 4)
@@ -884,26 +885,24 @@ def evaluate(tree, env=None):
         nonlocal env
         rest_name = None
         params = []
-        if isinstance(params_list_or_str, str):
+        if isinstance(params_list_or_str, str) and REST_PARAMS_ENABLED:
             rest_name = params_list_or_str
         elif isinstance(params_list_or_str, list):
-            rest_dot = False # Has the rest dot been encountered?
-            for param in params_list_or_str:
-                if param == '.' and not rest_dot:
-                    rest_dot = True
-                elif rest_dot and not rest_name:
-                    rest_name = param
-                elif rest_dot and rest_name: 
-                    # Valid Snek does technically allow for '.' as a param name, so it is not the rest name syntax, then actually reinterpret as names
-                    rest_dot = False
-                    params.append('.')
-                    params.append(rest_name)
-                    rest_name = None
-                    params.append(param)
-                else:
-                    params.append(param)
-            if rest_dot and not rest_name:
-                params.append('.') # We didn't encounter a rest param, so we should use '.' as a param name
+            if REST_PARAMS_ENABLED:
+                rest_dot = False # Has the rest dot been encountered?
+                for param in params_list_or_str:
+                    if param == '.' and not rest_dot:
+                        rest_dot = True
+                    elif rest_dot and not rest_name:
+                        rest_name = param
+                    elif rest_dot and rest_name: 
+                        raise SnekEvaluationError("Cannot have multiple rest params: have rest param {} already".format(rest_name))
+                    else:
+                        params.append(param)
+                if rest_dot and not rest_name:
+                    raise SnekEvaluationError("Cannot have a param named ., due to rest params being enabled")
+            else:
+                params = params_list_or_str
         else:
             raise SnekEvaluationError("Internal error: Cannot create lambda using params of type {}".format(type(params_list_or_str)))
         return UserFunction(env, params, body, rest_name)
@@ -1073,10 +1072,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="An interpreter for Snek")
     parser.add_argument('-p', '--no-color', action='store_true') # Plain color flag
     parser.add_argument('-s', '--no-multiexp', action='store_true') # Single expression flag
+    parser.add_argument('-d', '--no-rest', action='store_true') # Dot for rest params flag
     parser.add_argument('files', action='extend', nargs='*', type=str)
     args = parser.parse_args()
 
     MULTIEXP_ENABLED = not args.no_multiexp # Enable multi expressions for define, let and lambda
+    REST_PARAMS_ENABLED = not args.no_rest
 
     input_prompt = "in> "
     multiline_prompt = "..  "
