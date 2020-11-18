@@ -163,23 +163,25 @@ def check_set_form(expr):
     def check_set_form_length(name, leng, exact=True):
         if (len(expr) != leng and exact) or (len(expr) < leng and not exact):
             raise SnekSyntaxError(incomplete=False, message="wrong set form for {0}: expected {2}{1}, got {3} arguments".format(name, "+" if not exact else "", leng - 1, len(expr) - 1))
+    def check_lambda_param_syntax(expr):
+        return (isinstance(expr, list) and all(map(lambda i: isinstance(i, str), expr)))
     if expr:
         if expr[0] == 'define':
             check_set_form_length("define", 3, not MULTIEXP_ENABLED)
-            if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and (all(map(lambda i: isinstance(i, str), expr[1]))))):
+            if not (isinstance(expr[1], str) or (isinstance(expr[1], list) and len(expr[1]) > 0 and check_lambda_param_syntax(expr[1][1:]))):
                 raise SnekSyntaxError("malformed define", incomplete=False)
             if isinstance(expr[1], list) and expr[1][0] in KEYWORDS:
                 raise SnekSyntaxError("cannot define keyword {}".format(expr[1][0]), incomplete=False)
         elif expr[0] == 'lambda':
             check_set_form_length("lambda", 3, not MULTIEXP_ENABLED)
-            if not ((isinstance(expr[1], str) and REST_PARAMS_ENABLED) or (isinstance(expr[1], list) and all(map(lambda i: isinstance(i, str), expr[1])))):
+            if not ((isinstance(expr[1], str) and REST_PARAMS_ENABLED) or check_lambda_param_syntax(expr[1])):
                 raise SnekSyntaxError("malformed lambda", incomplete=False)
         elif expr[0] == 'if':
             check_set_form_length("if", 4)
         elif expr[0] == 'let' or expr[0] == 'letrec':
             check_set_form_length(expr[0], 3, not MULTIEXP_ENABLED)
             if not (isinstance(expr[1], list) and 
-                all(map(lambda i: isinstance(i, list) and len(i) == 2 and (isinstance(i[0], str) or (isinstance(i[0], list) and len(i[0]) > 0 and all(map(lambda i: isinstance(i, str), i[0])))), expr[1]))):
+                all(map(lambda i: isinstance(i, list) and len(i) == 2 and (isinstance(i[0], str) or (isinstance(i[0], list) and len(i[0]) > 0 and check_lambda_param_syntax(i[0][1:]))), expr[1]))):
                 raise SnekSyntaxError("malformed {}".format(expr[0]), incomplete=False)
         elif expr[0] == 'set!':
             check_set_form_length("set!", 3)
