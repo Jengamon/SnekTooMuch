@@ -329,23 +329,23 @@ def comparison(op):
 
 def not_fn(*args):
     if len(args) != 1:
-        raise SnekEvaluationError("not can only take 1 argument")
+        raise SnekEvaluationError("not must be given 1 argument")
     return not args[0]
 
 def cons(*args):
     if len(args) != 2:
-        raise SnekEvaluationError("cons can only take 2 arguments")
+        raise SnekEvaluationError("cons must be given 2 arguments")
     return Pair(args[0], args[1], list_mode=False)
 
 def car(*args):
     if len(args) != 1 or not isinstance(args[0], Pair):
-        raise SnekEvaluationError("car can only take 1 cons argument")
+        raise SnekEvaluationError("car must be given 1 argument: a cons")
     item = args[0]
     return item.car
 
 def cdr(*args):
     if len(args) != 1 or not isinstance(args[0], Pair):
-        raise SnekEvaluationError("cdr can only take 1 cons argument")
+        raise SnekEvaluationError("cdr must be given 1 argument: a cons")
     item = args[0]
     return item.cdr
 
@@ -362,20 +362,21 @@ def list_snek(*args):
         return top
 
 def length(*args):
-    if len(args) != 1 or not (isinstance(args[0], Pair) or args[0] == Nil()):
-        raise SnekEvaluationError("length can only take 1 list cons argument")
+    if len(args) != 1:
+        raise SnekEvaluationError("length must be given 1 argument: a list")
+    list_typecheck(args[0], "length", "Can only find length of list cons")
     i = 0
     item = args[0]
     while item != Nil():
         i += 1
         item = item.cdr
-        if not (isinstance(item, Pair) or item == Nil()):
-            raise SnekEvaluationError("Only supports list cons, not arbitrary cons")
+        list_typecheck(item, "length", "Can only find length of list cons")
     return i
 
 def elt_at_index(*args):
-    if len(args) != 2 or not (isinstance(args[0], Pair) and isinstance(args[1], int)) or args[1] < 0:
-        raise SnekEvaluationError("elt-at-index can only take 2 arguments: a list cons and positive integer")
+    if len(args) != 2 or not isinstance(args[1], int) or args[1] < 0:
+        raise SnekEvaluationError("elt-at-index must be given 2 arguments: a list and a positive integer")
+    list_typecheck(args[0], "elt-at-index", "Cannot operate on non-list cons")
     n = args[1]
     l = args[0]
     while n > 0:
@@ -419,8 +420,9 @@ def concat(*args):
             return Nil()
 
 def map_snek(*args):
-    if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
-        raise SnekEvaluationError
+    if len(args) != 2:
+        raise SnekEvaluationError("map must be given 2 arguments: a lambda and a list")
+    list_typecheck(args[1], "map", "Can only map list cons")
     flst = args[1].clone()
     clst = flst
     while clst != Nil():
@@ -428,15 +430,16 @@ def map_snek(*args):
             clst.car = args[0](clst.car)
         except TypeError as e:
             raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
+        list_typecheck(clst.cdr, "map", "Can only map list cons")
         it = clst.cdr.clone()
         clst.cdr = it
         clst = it
-        list_typecheck(clst, "map", "Can only map list cons")
     return flst
 
 def filter_snek(*args):
-    if len(args) != 2 or not (isinstance(args[1], Pair) or args[1] == Nil()):
-        raise SnekEvaluationError
+    if len(args) != 2:
+        raise SnekEvaluationError("filter must be given 2 arguments: a lambda and a list")
+    list_typecheck(args[1], "filter", "Can only filter list cons")
     plst = args[1] # Points to query of list
     flst = None # Points to begin of returned list
     clst = None # Points to current passed of returned list
@@ -453,8 +456,8 @@ def filter_snek(*args):
             else:
                 clst.cdr = it
                 clst = it
+        list_typecheck(plst.cdr, "filter", "Can only filter list cons")
         plst = plst.cdr
-        list_typecheck(plst, "filter", "Can only filter list cons")
     if clst and clst != Nil(): # Terminate the new list
         clst.cdr = Nil()
 
@@ -464,15 +467,16 @@ def filter_snek(*args):
         return Nil()
 
 def reduce_snek(*args):
-    if len(args) != 3 or not (isinstance(args[1], Pair) or args[1] == Nil()):
-        raise SnekEvaluationError
+    if len(args) != 3:
+        raise SnekEvaluationError("reduce must be given 3 arguments: a lambda, a list, and an initial value")
+    list_typecheck(args[1], "reduce", "Can only reduce list cons")
     val = args[2]
     cons = args[1]
     while cons != Nil():
         try:
             val = args[0](val, cons.car)
             cons = cons.cdr
-            list_typecheck(cons, "reduce", "Only supports list cons, not arbitrary cons")
+            list_typecheck(cons, "reduce", "Can only reduce list cons")
         except TypeError as e:
             raise SnekEvaluationError("Could not call arg 0 as function: {}".format(e))
     return val
@@ -482,35 +486,35 @@ def begin_snek(*args):
 
 def int_snek(*args):
     if len(args) != 1:
-        raise SnekEvaluationError("int can only take 1 argument")
+        raise SnekEvaluationError("int must be given 1 argument")
     return int(args[0])
 
 def set_car_mut(*args):
     if len(args) != 2 or not isinstance(args[0], Pair):
-        raise SnekEvaluationError("set-car! can only take 2 arguments: a cons and a value")
+        raise SnekEvaluationError("set-car! must be given 2 arguments: a cons and a value")
     args[0].car = args[1]
     return args[0]
 
 def import_snek(*args):
     if len(args) != 1 or not isinstance(args[0], str):
-        raise SnekEvaluationError("py-import only accepts a string/symbol quote")
+        raise SnekEvaluationError("py-import must be given a string/symbol quote")
     return __import__(args[0])
 
 def getattr_snek(*args):
     # We can't actually check if for the module class directly (cuz idk how), but we do know that sys is of that type
     # So we just check if it and sys have the same type...
     if len(args) != 2 or not isinstance(args[0], type(sys)) or not isinstance(args[1], str):
-        raise SnekEvaluationError("getattr can only get 2 arguments: a module, and a string/symbol quote")
+        raise SnekEvaluationError("getattr must be given 2 arguments: a module, and a string/symbol quote")
     return getattr(args[0], args[1])
 
 def is_num(*args):
     if len(args) != 1:
-        raise SnekEvaluationError("num? only accepts 1 argument")
+        raise SnekEvaluationError("num? must be given 1 argument")
     return type(args[0]) == int or type(args[0]) == float
 
 def is_list(*args):
     if len(args) != 1:
-        raise SnekEvaluationError("list? only accepts 1 argument")
+        raise SnekEvaluationError("list? must be given 1 argument")
     l = args[0]
     while isinstance(l, Pair) or isinstance(l, Nil):
         if l == Nil():
@@ -528,7 +532,7 @@ def print_snek(*args):
 def join_snek(*args):
     '''Joins its arguments similar to how Python does it'''
     if not args:
-        raise SnekEvaluationError("join must be given at least 1 argument")
+        raise SnekEvaluationError("join must be given 1 or more arguments")
     if args[0] != Nil():
         sep = str(args[0])
     else:
