@@ -3,8 +3,12 @@
 ; name? means that this method querys if a value satisfies some given condition (e.g. num?, list?)
 ; ~name means that this method generates code that can be executed (basically a macro)
 
-(define (null l)
-    (=? nil l)
+(define (empty? l)
+    (empty? l)
+)
+
+(define (non-empty? l) 
+    (and (not (empty? l)) (list? l))
 )
 
 ; Redefine concat using rest params to allow non-lists to be concated by converting them to lists
@@ -14,7 +18,7 @@
             (
                 concat-iter
                 (lambda (l ls)
-                    (if (=? nil ls)
+                    (if (empty? ls)
                         l
                         (if (list? (car ls))
                             (concat-iter (concat l (car ls)) (cdr ls))
@@ -34,7 +38,7 @@
             (
                 rev-iter
                 (lambda (l t)
-                    (if (null t)
+                    (if (empty? t)
                         l
                         (rev-iter (concat (list (car t)) l) (cdr t))
                     )
@@ -51,7 +55,7 @@
             (
                 rev-iter
                 (lambda (l t)
-                    (if (null t)
+                    (if (empty? t)
                         l
                         (rev-iter `(concat (list ,(car t)) ,l) (cdr t))
                     )
@@ -176,7 +180,7 @@
             (
                 take-iter
                 (lambda (r l n)
-                    (if (=? nil l)
+                    (if (empty? l)
                         r
                         (if (> n 0)
                             (take-iter (concat r (list (car l))) (cdr l) (- n 1))
@@ -191,7 +195,7 @@
 )
 
 (define (skip l n)
-    (if (null l)
+    (if (empty? l)
         nil
         (if (> n 0)
             (skip (cdr l) (- n 1))
@@ -262,7 +266,7 @@
 (define (~forth stack asaf code) ; the starting stack, additional single-argument-functions, code to execute
     (let
         ((saf (concat '(abs frac floor ceil round) asaf)))
-        (if (null code)
+        (if (empty? code)
             `(list ,@(rev stack))
             (let
                 (
@@ -309,7 +313,7 @@
 
 (define (~list-to-tree l)
     (define (tree-list l) 
-        (if (=? nil l) 
+        (if (empty? l) 
             nil 
             `(,(car l) . ,(tree-list (cdr l)))
         )
