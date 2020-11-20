@@ -32,5 +32,5 @@ It interprets the 6.009 variant of LISP, Snek, but with a few additions:
 ## Things that could probably be added
 
 - A proper string implementation, I just use `quote` whenever I want a string, but that doesn't allow for strings 
-with spaces. (If added, check for interactions with the fact that the representation of 'ident for any ident is in fact a Python string)
+with spaces. (If added, check for interactions with the fact that the representation of `'ident` for any ident is in fact a Python string)
 - Umm, it is possible to generate lists that are uninterpretable due to Python recursion limits. See if that's fixable.
