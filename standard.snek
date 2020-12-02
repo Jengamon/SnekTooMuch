@@ -304,6 +304,8 @@
     `(tree ',(tree-list l))
 )
 
+(define (~avg l) `(/ ,(elt-at-index ,,(~sum l) 0) ,(length l)))
+
 ; MACRO TESTBENCHING
 
 (define (~~slowsum n) ``(reduce + ,`(list ,@(range 0 (+ ,n 1) 1)) 0))
